@@ -106,3 +106,9 @@ Edit the config file used to start the server, then send `SIGHUP` to the server 
 **Use OpenVZ VM that supports vswap**. Otherwise, the OS will incorrectly account much more memory than actually used. shadowsocks-go on OpenVZ VM with vswap takes about 3MB memory after startup. (Refer to [this issue](https://github.com/shadowsocks/shadowsocks-go/issues/3) for more details.)
 
 If vswap is not an option and memory usage is a problem for you, try [shadowsocks-libev](https://github.com/madeye/shadowsocks-libev).
+
+# Design For Multi User In Single Port Mode
+
+In shadowsocks first connection, client will send cipher’s IV to server first, and then do the rest works. If we want to use single port with multi user mode, we can send a integer (4 bytes) first and then cipher’s IV at every connection created.
+
+In server side, we use a map to store userID and it’s cipher. In client side, every connection created to server we should send 4 bytes userID first and then rest data.
