@@ -1,12 +1,12 @@
 package shadowsocks
 
 import (
-	"errors"
-	"fmt"
-	"os"
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/binary"
+	"errors"
+	"fmt"
+	"os"
 )
 
 func PrintVersion() {
@@ -57,4 +57,14 @@ func (flag *ClosedFlag) SetClosed() {
 
 func (flag *ClosedFlag) IsClosed() bool {
 	return flag.flag
+}
+
+func Byte2UserID(data []byte) int {
+	return int(binary.BigEndian.Uint32(data))
+}
+
+func UserID2Byte(userID int) []byte {
+	ret := make([]byte, 4)
+	binary.BigEndian.PutUint32(ret, uint32(userID))
+	return ret
 }

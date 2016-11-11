@@ -297,6 +297,57 @@ func run(port, password string, auth bool) {
 	}
 }
 
+func runWithUserID(port string, auth bool) {
+	ln, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		log.Printf("error listening port %v: %v\n", port, err)
+		os.Exit(1)
+	}
+	cipherCache := make(map[int]*ss.Cipher)
+	log.Printf("server listening port %v ...\n", port)
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			// listener maybe closed to update password
+			debug.Printf("accept error: %v\n", err)
+			return
+		}
+		buf := make([]byte, 4)
+		if _, err = io.ReadFull(conn, buf); err != nil {
+			return
+		}
+		userID := ss.Byte2UserID(buf)
+		log.Printf("Got New Connection for UserID: %d\n", userID)
+		password := getPassword(userID)
+		if password == "" {
+			log.Printf("Error do not have user for ID: %d\n", userID)
+		}
+		// Creating cipher upon first connection.
+		cipher, have := cipherCache[userID]
+		if !have {
+			cipher, err = ss.NewCipher(config.Method, password)
+			if err != nil {
+				log.Printf("Error generating cipher for UserID: %s %v\n", userID, err)
+				conn.Close()
+				continue
+			}
+			log.Printf("Create cipher for UserID: %d", userID)
+			cipherCache[userID] = cipher
+		}
+		go handleConnection(ss.NewConn(conn, cipher.Copy()), auth)
+	}
+}
+
+func getPassword(userID int) string {
+	uidPwd := config.UserIDPassword
+	uidstr := fmt.Sprintf("%d", userID)
+	password, have := uidPwd[uidstr]
+	if !have {
+		return ""
+	}
+	return password
+}
+
 func enoughOptions(config *ss.Config) bool {
 	return config.ServerPort != 0 && config.Password != ""
 }
@@ -374,8 +425,11 @@ func main() {
 	if core > 0 {
 		runtime.GOMAXPROCS(core)
 	}
-	for port, password := range config.PortPassword {
-		go run(port, password, config.Auth)
+	// for port, password := range config.PortPassword {
+	// 	go run(port, password, config.Auth)
+	// }
+	for port, _ := range config.PortPassword {
+		go runWithUserID(port, config.Auth)
 	}
 
 	waitSignal()

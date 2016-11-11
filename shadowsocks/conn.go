@@ -55,6 +55,32 @@ func RawAddr(addr string) (buf []byte, err error) {
 	return
 }
 
+func DialWithRawAddrAndUserID(rawaddr []byte, server string, cipher *Cipher, userID []byte) (c *Conn, err error) {
+	conn, err := net.Dial("tcp", server)
+	if err != nil {
+		return
+	}
+	c = NewConn(conn, cipher)
+	if cipher.ota {
+		if c.enc == nil {
+			if _, err = c.initEncrypt(); err != nil {
+				return
+			}
+		}
+		// First Send UserID
+		conn.Write(userID)
+		// since we have initEncrypt, we must send iv manually
+		conn.Write(cipher.iv)
+		rawaddr[0] |= OneTimeAuthMask
+		rawaddr = otaConnectAuth(cipher.iv, cipher.key, rawaddr)
+	}
+	if _, err = c.write(rawaddr); err != nil {
+		c.Close()
+		return nil, err
+	}
+	return
+}
+
 // This is intended for use by users implementing a local socks proxy.
 // rawaddr shoud contain part of the data in socks request, starting from the
 // ATYP field. (Refer to rfc1928 for more information.)

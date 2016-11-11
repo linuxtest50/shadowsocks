@@ -237,6 +237,22 @@ func parseServerConfig(config *ss.Config) {
 	return
 }
 
+func connectToServerWithUserID(serverId int, rawaddr []byte, addr string, userID int) (remote *ss.Conn, err error) {
+	se := servers.srvCipher[serverId]
+	remote, err = ss.DialWithRawAddrAndUserID(rawaddr, se.server, se.cipher.Copy(), ss.UserID2Byte(userID))
+	if err != nil {
+		log.Println("error connecting to shadowsocks server:", err)
+		const maxFailCnt = 30
+		if servers.failCnt[serverId] < maxFailCnt {
+			servers.failCnt[serverId]++
+		}
+		return nil, err
+	}
+	debug.Printf("connected to %s via %s\n", addr, se.server)
+	servers.failCnt[serverId] = 0
+	return
+}
+
 func connectToServer(serverId int, rawaddr []byte, addr string) (remote *ss.Conn, err error) {
 	se := servers.srvCipher[serverId]
 	remote, err = ss.DialWithRawAddr(rawaddr, se.server, se.cipher.Copy())
@@ -282,7 +298,36 @@ func createServerConn(rawaddr []byte, addr string) (remote *ss.Conn, err error) 
 	return nil, err
 }
 
-func handleConnection(conn net.Conn) {
+// Connection to the server in the order specified in the config. On
+// connection failure, try the next server. A failed server will be tried with
+// some probability according to its fail count, so we can discover recovered
+// servers.
+func createServerConnWithUserID(rawaddr []byte, addr string, userID int) (remote *ss.Conn, err error) {
+	const baseFailCnt = 20
+	n := len(servers.srvCipher)
+	skipped := make([]int, 0)
+	for i := 0; i < n; i++ {
+		// skip failed server, but try it with some probability
+		if servers.failCnt[i] > 0 && rand.Intn(servers.failCnt[i]+baseFailCnt) != 0 {
+			skipped = append(skipped, i)
+			continue
+		}
+		remote, err = connectToServerWithUserID(i, rawaddr, addr, userID)
+		if err == nil {
+			return
+		}
+	}
+	// last resort, try skipped servers, not likely to succeed
+	for _, i := range skipped {
+		remote, err = connectToServerWithUserID(i, rawaddr, addr, userID)
+		if err == nil {
+			return
+		}
+	}
+	return nil, err
+}
+
+func handleConnection(conn net.Conn, userID int) {
 	if debug {
 		debug.Printf("socks connect from %s\n", conn.RemoteAddr().String())
 	}
@@ -312,7 +357,8 @@ func handleConnection(conn net.Conn) {
 		return
 	}
 
-	remote, err := createServerConn(rawaddr, addr)
+	// remote, err := createServerConn(rawaddr, addr)
+	remote, err := createServerConnWithUserID(rawaddr, addr, userID)
 	if err != nil {
 		if len(servers.srvCipher) > 1 {
 			log.Println("Failed connect to all avaiable shadowsocks server")
@@ -331,7 +377,7 @@ func handleConnection(conn net.Conn) {
 	debug.Println("closed connection to", addr)
 }
 
-func run(listenAddr string) {
+func run(listenAddr string, userID int) {
 	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		log.Fatal(err)
@@ -343,7 +389,7 @@ func run(listenAddr string) {
 			log.Println("accept:", err)
 			continue
 		}
-		go handleConnection(conn)
+		go handleConnection(conn, userID)
 	}
 }
 
@@ -426,5 +472,5 @@ func main() {
 
 	parseServerConfig(config)
 
-	run(cmdLocal + ":" + strconv.Itoa(config.LocalPort))
+	run(cmdLocal+":"+strconv.Itoa(config.LocalPort), config.UserID)
 }

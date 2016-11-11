@@ -1,3 +1,11 @@
 *.deb
 script/http
 bin
+**/.DS_Store
+cmd/shadowsocks-local/shadowsocks-local
+cmd/shadowsocks-local/shadowsocks-local.exe
+cmd/shadowsocks-local/*.json
+cmd/shadowsocks-server/shadowsocks-server.exe
+cmd/shadowsocks-server/shadowsocks-server
+cmd/shadowsocks-server/*.json
+

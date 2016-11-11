@@ -35,6 +35,10 @@ type Config struct {
 	// The order of servers in the client config is significant, so use array
 	// instead of map to preserve the order.
 	ServerPassword [][]string `json:"server_password"`
+
+	// Below is user_id and user_id and password map
+	UserID         int               `json:"user_id"`
+	UserIDPassword map[string]string `json:"user_password"`
 }
 
 var readTimeout time.Duration
