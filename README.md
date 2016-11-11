@@ -145,7 +145,8 @@ config.json
     "timeout": 600,
     "user_id": 1000,
     "password": "password"
-}```
+}
+```
 
 Create table SQL:
 
