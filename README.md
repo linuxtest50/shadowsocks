@@ -115,6 +115,38 @@ In server side, we use a map to store userID and it’s cipher. In client side, 
 
 ## For Multi User MySQL support
 
+Sample Server Side Configuration File:
+
+config.json
+
+```
+{
+    "port_password": {
+        "8387": "Fake"
+    },
+    "method": "aes-256-cfb-auth",
+    "timeout":600,
+    "use_database": true,
+    "database_url": "root:password@tcp(127.0.0.1:3306)/ssuser?charset=utf8"
+}
+```
+
+Sample Client Side Configuration File:
+
+config.json
+
+```
+{
+    "server": "127.0.0.1",
+    "server_port": 8387,
+    "local_port": 7070,
+    "method": "aes-256-cfb-auth",
+    "auth": true,
+    "timeout": 600,
+    "user_id": 1000,
+    "password": "password"
+}```
+
 Create table SQL:
 
 ```
@@ -135,19 +167,25 @@ SQLs for some function:
 Add User:
 
 ```
-INSERT INTO user (userid, password, status, bandwidth) VALUES ('1001', 'password', 'Enabled', '10');
+INSERT INTO user (userid, password, status, bandwidth) VALUES ('1000', 'password', 'Enabled', '10');
 ```
 
 Disable User:
 
 ```
-UPDATE user SET status='Disabled' WHERE userid='1001';
+UPDATE user SET status='Disabled' WHERE userid='1000';
 ```
 
 Enable User:
 
 ```
-UPDATE user SET status='Enabled' WHERE userid='1001';
+UPDATE user SET status='Enabled' WHERE userid='1000';
+```
+
+Change Password:
+
+```
+UPDATE user SET password='PASSWORD' WHERE userid='1000';
 ```
 
 Delete User:
