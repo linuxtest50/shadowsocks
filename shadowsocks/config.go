@@ -39,6 +39,10 @@ type Config struct {
 	// Below is user_id and user_id and password map
 	UserID         int               `json:"user_id"`
 	UserIDPassword map[string]string `json:"user_password"`
+
+	// Database Related Config
+	UseDatabase bool   `json:"use_database"`
+	DatabaseURL string `json:"database_url"`
 }
 
 var readTimeout time.Duration

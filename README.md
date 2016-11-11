@@ -112,3 +112,46 @@ If vswap is not an option and memory usage is a problem for you, try [shadowsock
 In shadowsocks first connection, client will send cipher’s IV to server first, and then do the rest works. If we want to use single port with multi user mode, we can send a integer (4 bytes) first and then cipher’s IV at every connection created.
 
 In server side, we use a map to store userID and it’s cipher. In client side, every connection created to server we should send 4 bytes userID first and then rest data.
+
+## For Multi User MySQL support
+
+Create table SQL:
+
+```
+CREATE TABLE `user` (
+  `userid` int(11) NOT NULL DEFAULT '0',
+  `password` varchar(255) DEFAULT NULL,
+  `status` varchar(20) DEFAULT NULL,
+  `bandwidth` int(11) DEFAULT NULL,
+  PRIMARY KEY (`userid`),
+  UNIQUE KEY `userid` (`userid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
+```
+
+status: Enabled, Disabled
+
+SQLs for some function:
+
+Add User:
+
+```
+INSERT INTO user (userid, password, status, bandwidth) VALUES ('1001', 'password', 'Enabled', '10');
+```
+
+Disable User:
+
+```
+UPDATE user SET status='Disabled' WHERE userid='1001';
+```
+
+Enable User:
+
+```
+UPDATE user SET status='Enabled' WHERE userid='1001';
+```
+
+Delete User:
+
+```
+DELETE FROM user WHERE userid='1001';
+```

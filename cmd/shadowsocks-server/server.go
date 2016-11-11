@@ -327,7 +327,7 @@ func runWithUserID(port string, auth bool) {
 		if !have {
 			cipher, err = ss.NewCipher(config.Method, password)
 			if err != nil {
-				log.Printf("Error generating cipher for UserID: %s %v\n", userID, err)
+				log.Printf("Error generating cipher for UserID: %d %v\n", userID, err)
 				conn.Close()
 				continue
 			}
@@ -339,6 +339,14 @@ func runWithUserID(port string, auth bool) {
 }
 
 func getPassword(userID int) string {
+	if config.UseDatabase {
+		return getPasswordFromDatabase(userID, config.DatabaseURL)
+	} else {
+		return getPasswordFromConfig(userID)
+	}
+}
+
+func getPasswordFromConfig(userID int) string {
 	uidPwd := config.UserIDPassword
 	uidstr := fmt.Sprintf("%d", userID)
 	password, have := uidPwd[uidstr]
