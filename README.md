@@ -137,14 +137,14 @@ config.json
 
 ```
 {
-    "server": "127.0.0.1",
-    "server_port": 8387,
     "local_port": 7070,
     "method": "aes-256-cfb-auth",
     "auth": true,
     "timeout": 600,
     "user_id": 1000,
-    "password": "password"
+    "server_password": [
+        ["127.0.0.1:7071", "123456", "aes-256-cfb-auth"]
+    ]
 }
 ```
 
