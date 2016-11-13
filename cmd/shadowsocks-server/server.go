@@ -44,7 +44,7 @@ func getRequest(conn *ss.Conn, auth bool) (host string, ota bool, err error) {
 	// buf size should at least have the same size with the largest possible
 	// request size (when addrType is 3, domain name has at most 256 bytes)
 	// 1(addrType) + 1(lenByte) + 256(max length address) + 2(port) + 10(hmac-sha1)
-	buf := make([]byte, 270)
+	buf := make([]byte, 274)
 	// read till we get possible domain length field
 	if _, err = io.ReadFull(conn, buf[:idType+1]); err != nil {
 		return
