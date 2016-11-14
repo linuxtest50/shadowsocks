@@ -303,7 +303,12 @@ func runWithUserID(port string, auth bool) {
 		log.Printf("error listening port %v: %v\n", port, err)
 		os.Exit(1)
 	}
-	cipherCache := make(map[int]*ss.Cipher)
+	// cipherCache := make(map[int]*ss.Cipher)
+	cipherCache, err := NewLRU(10000, nil)
+	if err != nil {
+		log.Printf("Error: Cannot create cipher cache!")
+		os.Exit(1)
+	}
 	log.Printf("server listening port %v ...\n", port)
 	for {
 		conn, err := ln.Accept()
@@ -323,7 +328,7 @@ func runWithUserID(port string, auth bool) {
 			log.Printf("Error do not have user for ID: %d\n", userID)
 		}
 		// Creating cipher upon first connection.
-		cipher, have := cipherCache[userID]
+		cipher, have := cipherCache.Get(userID)
 		if !have {
 			cipher, err = ss.NewCipher(config.Method, password)
 			if err != nil {
@@ -332,9 +337,10 @@ func runWithUserID(port string, auth bool) {
 				continue
 			}
 			log.Printf("Create cipher for UserID: %d", userID)
-			cipherCache[userID] = cipher
+			cipherCache.Add(userID, cipher)
 		}
-		go handleConnection(ss.NewConn(conn, cipher.Copy()), auth)
+		pcipher := cipher.(*ss.Cipher)
+		go handleConnection(ss.NewConn(conn, pcipher.Copy()), auth)
 	}
 }
 
