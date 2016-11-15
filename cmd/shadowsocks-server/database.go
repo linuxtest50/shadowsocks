@@ -21,6 +21,7 @@ func getPasswordFromDatabase(userID int, url string) string {
 		fmt.Printf("Error: %v", err)
 		return ""
 	}
+	defer db.Close()
 	ssuser, err := queryDatabase(db, userID)
 	if err != nil {
 		fmt.Printf("Error: %v", err)
@@ -40,8 +41,7 @@ type SSUser struct {
 }
 
 func getConnection(url string) (*sql.DB, error) {
-	db, err := sql.Open("mysql", url)
-	return db, err
+	return sql.Open("mysql", url)
 }
 
 func queryDatabase(db *sql.DB, userID int) (*SSUser, error) {
@@ -53,13 +53,18 @@ func queryDatabase(db *sql.DB, userID int) (*SSUser, error) {
 	if rows == nil {
 		return nil, nil
 	}
+	defer rows.Close()
+	var ret *SSUser = nil
 	for rows.Next() {
+		if ret != nil {
+			continue
+		}
 		user := new(SSUser)
 		row_err := rows.Scan(&user.UserID, &user.Password, &user.Status, &user.Bandwidth)
 		if row_err != nil {
 			return nil, err
 		}
-		return user, nil
+		ret = user
 	}
-	return nil, nil
+	return ret, nil
 }
