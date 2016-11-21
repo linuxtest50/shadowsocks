@@ -14,7 +14,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 
 	ss "github.com/shadowsocks/shadowsocks-go/shadowsocks"
@@ -107,7 +106,7 @@ const logCntDelta = 100
 var connCnt int
 var nextLogConnCnt int = logCntDelta
 
-func handleConnection(conn *ss.Conn, auth bool) {
+func handleConnection(conn *ss.Conn, auth bool, userID int) {
 	var host string
 
 	connCnt++ // this maybe not accurate, but should be enough
@@ -118,6 +117,8 @@ func handleConnection(conn *ss.Conn, auth bool) {
 		log.Printf("Number of client connections reaches %d\n", nextLogConnCnt)
 		nextLogConnCnt += logCntDelta
 	}
+	conn.UserID = uint32(userID)
+	conn.GetUserStatistic().IncConnections()
 
 	// function arguments are always evaluated, so surround debug statement
 	// with if statement
@@ -170,130 +171,16 @@ func handleConnection(conn *ss.Conn, auth bool) {
 	return
 }
 
-type PortListener struct {
-	password string
-	listener net.Listener
-}
-
-type PasswdManager struct {
-	sync.Mutex
-	portListener map[string]*PortListener
-}
-
-func (pm *PasswdManager) add(port, password string, listener net.Listener) {
-	pm.Lock()
-	pm.portListener[port] = &PortListener{password, listener}
-	pm.Unlock()
-}
-
-func (pm *PasswdManager) get(port string) (pl *PortListener, ok bool) {
-	pm.Lock()
-	pl, ok = pm.portListener[port]
-	pm.Unlock()
-	return
-}
-
-func (pm *PasswdManager) del(port string) {
-	pl, ok := pm.get(port)
-	if !ok {
-		return
-	}
-	pl.listener.Close()
-	pm.Lock()
-	delete(pm.portListener, port)
-	pm.Unlock()
-}
-
-// Update port password would first close a port and restart listening on that
-// port. A different approach would be directly change the password used by
-// that port, but that requires **sharing** password between the port listener
-// and password manager.
-func (pm *PasswdManager) updatePortPasswd(port, password string, auth bool) {
-	pl, ok := pm.get(port)
-	if !ok {
-		log.Printf("new port %s added\n", port)
-	} else {
-		if pl.password == password {
-			return
-		}
-		log.Printf("closing port %s to update password\n", port)
-		pl.listener.Close()
-	}
-	// run will add the new port listener to passwdManager.
-	// So there maybe concurrent access to passwdManager and we need lock to protect it.
-	go run(port, password, auth)
-}
-
-var passwdManager = PasswdManager{portListener: map[string]*PortListener{}}
-
-func updatePasswd() {
-	log.Println("updating password")
-	newconfig, err := ss.ParseConfig(configFile)
-	if err != nil {
-		log.Printf("error parsing config file %s to update password: %v\n", configFile, err)
-		return
-	}
-	oldconfig := config
-	config = newconfig
-
-	if err = unifyPortPassword(config); err != nil {
-		return
-	}
-	for port, passwd := range config.PortPassword {
-		passwdManager.updatePortPasswd(port, passwd, config.Auth)
-		if oldconfig.PortPassword != nil {
-			delete(oldconfig.PortPassword, port)
-		}
-	}
-	// port password still left in the old config should be closed
-	for port, _ := range oldconfig.PortPassword {
-		log.Printf("closing port %s as it's deleted\n", port)
-		passwdManager.del(port)
-	}
-	log.Println("password updated")
-}
-
 func waitSignal() {
 	var sigChan = make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGHUP)
 	for sig := range sigChan {
 		if sig == syscall.SIGHUP {
-			updatePasswd()
 		} else {
 			// is this going to happen?
 			log.Printf("caught signal %v, exit", sig)
 			os.Exit(0)
 		}
-	}
-}
-
-func run(port, password string, auth bool) {
-	ln, err := net.Listen("tcp", ":"+port)
-	if err != nil {
-		log.Printf("error listening port %v: %v\n", port, err)
-		os.Exit(1)
-	}
-	passwdManager.add(port, password, ln)
-	var cipher *ss.Cipher
-	log.Printf("server listening port %v ...\n", port)
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			// listener maybe closed to update password
-			debug.Printf("accept error: %v\n", err)
-			return
-		}
-		// Creating cipher upon first connection.
-		if cipher == nil {
-			log.Println("creating cipher for port:", port)
-			cipher, err = ss.NewCipher(config.Method, password)
-			if err != nil {
-				log.Printf("Error generating cipher for port: %s %v\n", port, err)
-				conn.Close()
-				continue
-			}
-		}
-		go handleConnection(ss.NewConn(conn, cipher.Copy()), auth)
 	}
 }
 
@@ -329,6 +216,8 @@ func runWithUserID(port string, auth bool) {
 		}
 		// Creating cipher upon first connection.
 		cipher, have := cipherCache.Get(userID)
+		us := ss.GetUserStatistic(uint32(userID))
+		us.IncInBytes(4)
 		if !have {
 			cipher, err = ss.NewCipher(config.Method, password)
 			if err != nil {
@@ -340,13 +229,13 @@ func runWithUserID(port string, auth bool) {
 			cipherCache.Add(userID, cipher)
 		}
 		pcipher := cipher.(*ss.Cipher)
-		go handleConnection(ss.NewConn(conn, pcipher.Copy()), auth)
+		go handleConnection(ss.NewConn(conn, pcipher.Copy()), auth, userID)
 	}
 }
 
 func getPassword(userID int) string {
 	if config.UseDatabase {
-		return getPasswordFromDatabase(userID, config.DatabaseURL)
+		return getPasswordFromDatabase(userID)
 	} else {
 		return getPasswordFromConfig(userID)
 	}
@@ -438,6 +327,13 @@ func main() {
 	}
 	if core > 0 {
 		runtime.GOMAXPROCS(core)
+	}
+	if config.UseDatabase {
+		err = initDB(config.DatabaseURL)
+		if err != nil {
+			fmt.Print(err)
+			os.Exit(1)
+		}
 	}
 	// for port, password := range config.PortPassword {
 	// 	go run(port, password, config.Auth)

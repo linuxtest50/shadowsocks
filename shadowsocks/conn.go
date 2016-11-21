@@ -19,6 +19,7 @@ type Conn struct {
 	readBuf  []byte
 	writeBuf []byte
 	chunkId  uint32
+	UserID   uint32
 }
 
 func NewConn(c net.Conn, cipher *Cipher) *Conn {
@@ -139,6 +140,10 @@ func (c *Conn) GetAndIncrChunkId() (chunkId uint32) {
 	return
 }
 
+func (c *Conn) GetUserStatistic() *UserStatistic {
+	return GetUserStatistic(c.UserID)
+}
+
 func (c *Conn) Read(b []byte) (n int, err error) {
 	if c.dec == nil {
 		iv := make([]byte, c.info.ivLen)
@@ -151,6 +156,7 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 		if len(c.iv) == 0 {
 			c.iv = iv
 		}
+		c.GetUserStatistic().IncInBytes(c.info.ivLen)
 	}
 
 	cipherData := c.readBuf
@@ -163,6 +169,7 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 	n, err = c.Conn.Read(cipherData)
 	if n > 0 {
 		c.decrypt(b[0:n], cipherData[0:n])
+		c.GetUserStatistic().IncInBytes(n)
 	}
 	return
 }
@@ -208,5 +215,8 @@ func (c *Conn) write(b []byte) (n int, err error) {
 
 	c.encrypt(cipherData[len(iv):], b)
 	n, err = c.Conn.Write(cipherData)
+	if n > 0 {
+		c.GetUserStatistic().IncOutBytes(n)
+	}
 	return
 }

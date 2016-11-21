@@ -6,6 +6,14 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
+var db *sql.DB
+
+func initDB(url string) error {
+	var err error
+	db, err = sql.Open("mysql", url)
+	return err
+}
+
 // Database Table Format:
 // table user (
 //    userid int
@@ -15,14 +23,8 @@ import (
 // )
 // Status: Enabled, Disabled
 //
-func getPasswordFromDatabase(userID int, url string) string {
-	db, err := getConnection(url)
-	if err != nil {
-		fmt.Printf("Error: %v", err)
-		return ""
-	}
-	defer db.Close()
-	ssuser, err := queryDatabase(db, userID)
+func getPasswordFromDatabase(userID int) string {
+	ssuser, err := queryDatabase(userID)
 	if err != nil {
 		fmt.Printf("Error: %v", err)
 		return ""
@@ -40,11 +42,7 @@ type SSUser struct {
 	Bandwidth int
 }
 
-func getConnection(url string) (*sql.DB, error) {
-	return sql.Open("mysql", url)
-}
-
-func queryDatabase(db *sql.DB, userID int) (*SSUser, error) {
+func queryDatabase(userID int) (*SSUser, error) {
 	sql := fmt.Sprintf("SELECT userid, password, status, bandwidth FROM user WHERE userid='%d' AND status='Enabled';", userID)
 	rows, err := db.Query(sql)
 	if err != nil {
