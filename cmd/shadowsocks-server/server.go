@@ -341,6 +341,7 @@ func main() {
 	for port, _ := range config.PortPassword {
 		go runWithUserID(port, config.Auth)
 	}
+	go StartStatisticServer("127.0.0.1:8080")
 
 	waitSignal()
 }
