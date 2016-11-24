@@ -29,8 +29,9 @@ type Bucket struct {
 	// in the bucket, as of availTick ticks from startTime.
 	// It will be negative when there are consumers
 	// waiting for tokens.
-	avail     int64
-	availTick int64
+    OriginRate int64
+	avail      int64
+	availTick  int64
 }
 
 // NewBucket returns a new token bucket that fills at the
@@ -50,7 +51,7 @@ const rateMargin = 0.01
 // maximum capacity. Because of limited clock resolution,
 // at high rates, the actual rate may be up to 1% different from the
 // specified rate.
-func NewBucketWithRate(rate float64, capacity int64) *Bucket {
+func NewBucketWithRate(rate float64, capacity int64, originRate int64) *Bucket {
 	for quantum := int64(1); quantum < 1<<50; quantum = nextQuantum(quantum) {
 		fillInterval := time.Duration(1e9 * float64(quantum) / rate)
 		if fillInterval <= 0 {
@@ -58,6 +59,7 @@ func NewBucketWithRate(rate float64, capacity int64) *Bucket {
 		}
 		tb := NewBucketWithQuantum(fillInterval, capacity, quantum)
 		if diff := math.Abs(tb.Rate() - rate); diff/rate <= rateMargin {
+            tb.OriginRate = originRate
 			return tb
 		}
 	}

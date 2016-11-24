@@ -254,14 +254,15 @@ func getOrCreateBucket(cache *LRU, userID int, bandwidth int) *Bucket {
     }
     bucket, have := cache.Get(userID)
     rate := bandwidth * 1000 * 1000 / 8
+    bursting := 8192
     if !have {
         // we should create a bucket
-        bucket = NewBucketWithRate(rate, 100)
+        bucket = NewBucketWithRate(float64(rate), bursting, bandwidth)
         cache.Add(userID, bucket)
     } else {
-        if bucket.Rate() != rate {
+        if bucket.OriginRate != int64(bandwidth) {
             // we should create a new bucket with new rate
-            bucket = NewBucketWithRate(rate, 100)
+            bucket = NewBucketWithRate(float64(rate), bursting, bandwidth)
             cache.Add(userID, bucket)
         }
     }
