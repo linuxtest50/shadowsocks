@@ -23,16 +23,16 @@ func initDB(url string) error {
 // )
 // Status: Enabled, Disabled
 //
-func getPasswordFromDatabase(userID int) string {
+func getPasswordAndBandwidthFromDatabase(userID int) string, int {
 	ssuser, err := queryDatabase(userID)
 	if err != nil {
 		fmt.Printf("Error: %v", err)
-		return ""
+		return "", -1
 	}
 	if ssuser == nil {
-		return ""
+		return "", -1
 	}
-	return ssuser.Password
+	return ssuser.Password, ssuser.Bandwidth
 }
 
 type SSUser struct {

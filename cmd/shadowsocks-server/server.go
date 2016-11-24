@@ -196,6 +196,16 @@ func runWithUserID(port string, auth bool) {
 		log.Printf("Error: Cannot create cipher cache!")
 		os.Exit(1)
 	}
+    writeBucketCache, err := NewLRU(10000, nil)
+	if err != nil {
+		log.Printf("Error: Cannot create write bucket cache!")
+		os.Exit(1)
+	}
+    readBucketCache, err := NewLRU(10000, nil)
+	if err != nil {
+		log.Printf("Error: Cannot create read bucket cache!")
+		os.Exit(1)
+	}
 	log.Printf("server listening port %v ...\n", port)
 	for {
 		conn, err := ln.Accept()
@@ -210,7 +220,7 @@ func runWithUserID(port string, auth bool) {
 		}
 		userID := ss.Byte2UserID(buf)
 		log.Printf("Got New Connection for UserID: %d\n", userID)
-		password := getPassword(userID)
+		password, bandwidth := getPasswordAndBandwidth(userID)
 		if password == "" {
 			log.Printf("Error do not have user for ID: %d\n", userID)
 			conn.Close()
@@ -231,15 +241,38 @@ func runWithUserID(port string, auth bool) {
 			cipherCache.Add(userID, cipher)
 		}
 		pcipher := cipher.(*ss.Cipher)
-		go handleConnection(ss.NewConn(conn, pcipher.Copy()), auth, userID)
+        ssconn := ss.NewConn(conn, pcipher.Copy())
+        ssconn.WriteBucket = getOrCreateBucket(writeBucketCache, userID, bandwidth)
+        ssconn.ReadBucket = getOrCreateBucket(readBucketCache, userID, bandwidth)
+		go handleConnection(ssconn, auth, userID)
 	}
 }
 
-func getPassword(userID int) string {
+func getOrCreateBucket(cache *LRU, userID int, bandwidth int) *Bucket {
+    if bandwidth == -1 {
+        return nil
+    }
+    bucket, have := cache.Get(userID)
+    rate := bandwidth * 1000 * 1000 / 8
+    if !have {
+        // we should create a bucket
+        bucket = NewBucketWithRate(rate, 100)
+        cache.Add(userID, bucket)
+    } else {
+        if bucket.Rate() != rate {
+            // we should create a new bucket with new rate
+            bucket = NewBucketWithRate(rate, 100)
+            cache.Add(userID, bucket)
+        }
+    }
+    return bucket
+}
+
+func getPasswordAndBandwidth(userID int) string, int {
 	if config.UseDatabase {
-		return getPasswordFromDatabase(userID)
+		return getPasswordAndBandwidthFromDatabase(userID)
 	} else {
-		return getPasswordFromConfig(userID)
+		return getPasswordFromConfig(userID), -1
 	}
 }
 
