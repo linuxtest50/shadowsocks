@@ -213,6 +213,8 @@ func runWithUserID(port string, auth bool) {
 		password := getPassword(userID)
 		if password == "" {
 			log.Printf("Error do not have user for ID: %d\n", userID)
+			conn.Close()
+			continue
 		}
 		// Creating cipher upon first connection.
 		cipher, have := cipherCache.Get(userID)

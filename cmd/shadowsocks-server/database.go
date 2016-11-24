@@ -44,7 +44,12 @@ type SSUser struct {
 
 func queryDatabase(userID int) (*SSUser, error) {
 	sql := fmt.Sprintf("SELECT userid, password, status, bandwidth FROM user WHERE userid='%d' AND status='Enabled';", userID)
-	rows, err := db.Query(sql)
+	tx, err := db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Commit()
+	rows, err := tx.Query(sql)
 	if err != nil {
 		return nil, err
 	}
