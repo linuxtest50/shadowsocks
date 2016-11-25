@@ -6,11 +6,13 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"time"
 )
 
 const (
-	OneTimeAuthMask byte = 0x10
-	AddrMask        byte = 0xf
+	OneTimeAuthMask          byte          = 0x10
+	AddrMask                 byte          = 0xf
+	RateLimitWaitMaxDuration time.Duration = time.Duration(1) * time.Second
 )
 
 type Conn struct {
@@ -20,8 +22,8 @@ type Conn struct {
 	writeBuf    []byte
 	chunkId     uint32
 	UserID      uint32
-    WriteBucket *Bucket
-    ReadBucket  *Bucket
+	WriteBucket *Bucket
+	ReadBucket  *Bucket
 }
 
 func NewConn(c net.Conn, cipher *Cipher) *Conn {
@@ -30,9 +32,9 @@ func NewConn(c net.Conn, cipher *Cipher) *Conn {
 		Cipher:      cipher,
 		readBuf:     leakyBuf.Get(),
 		writeBuf:    leakyBuf.Get(),
-        WriteBucket: nil,
-        ReadBucket:  nil,
-    }
+		WriteBucket: nil,
+		ReadBucket:  nil,
+	}
 }
 
 func (c *Conn) Close() error {
@@ -175,9 +177,9 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 	if n > 0 {
 		c.decrypt(b[0:n], cipherData[0:n])
 		c.GetUserStatistic().IncInBytes(n)
-        if c.ReadBucket != nil {
-            c.ReadBucket.Wait(int64(n))
-        }
+		if c.ReadBucket != nil {
+			c.ReadBucket.WaitMaxDuration(int64(n), RateLimitWaitMaxDuration)
+		}
 	}
 	return
 }
@@ -225,9 +227,9 @@ func (c *Conn) write(b []byte) (n int, err error) {
 	n, err = c.Conn.Write(cipherData)
 	if n > 0 {
 		c.GetUserStatistic().IncOutBytes(n)
-        if c.WriteBucket != nil {
-            c.WriteBucket.Wait(int64(n))
-        }
+		if c.WriteBucket != nil {
+			c.WriteBucket.WaitMaxDuration(int64(n), RateLimitWaitMaxDuration)
+		}
 	}
 	return
 }

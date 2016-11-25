@@ -255,7 +255,7 @@ func getOrCreateBucket(cache *LRU, userID int, bandwidth int) *ss.Bucket {
 	var bucket *ss.Bucket
 	cbucket, have := cache.Get(userID)
 	rate := bandwidth * 1000 * 1000 / 8
-	var bursting int64 = 128
+	var bursting int64 = 4096
 	if !have {
 		// we should create a bucket
 		bucket = ss.NewBucketWithRate(float64(rate), bursting, int64(bandwidth))
@@ -264,6 +264,7 @@ func getOrCreateBucket(cache *LRU, userID int, bandwidth int) *ss.Bucket {
 		bucket = cbucket.(*ss.Bucket)
 		if bucket.OriginRate != int64(bandwidth) {
 			// we should create a new bucket with new rate
+			// BUG: bucket.UpdateRate(float64(rate), int64(bandwidth))
 			bucket = ss.NewBucketWithRate(float64(rate), bursting, int64(bandwidth))
 			cache.Add(userID, bucket)
 		}

@@ -29,7 +29,7 @@ type Bucket struct {
 	// in the bucket, as of availTick ticks from startTime.
 	// It will be negative when there are consumers
 	// waiting for tokens.
-    OriginRate int64
+	OriginRate int64
 	avail      int64
 	availTick  int64
 }
@@ -59,7 +59,7 @@ func NewBucketWithRate(rate float64, capacity int64, originRate int64) *Bucket {
 		}
 		tb := NewBucketWithQuantum(fillInterval, capacity, quantum)
 		if diff := math.Abs(tb.Rate() - rate); diff/rate <= rateMargin {
-            tb.OriginRate = originRate
+			tb.OriginRate = originRate
 			return tb
 		}
 	}
@@ -200,6 +200,31 @@ func (tb *Bucket) Capacity() int64 {
 // Rate returns the fill rate of the bucket, in tokens per second.
 func (tb *Bucket) Rate() float64 {
 	return 1e9 * float64(tb.quantum) / float64(tb.fillInterval)
+}
+
+func (tb *Bucket) UpdateRate(rate float64, originRate int64) {
+	for quantum := int64(1); quantum < 1<<50; quantum = nextQuantum(quantum) {
+		fillInterval := time.Duration(1e9 * float64(quantum) / rate)
+		if fillInterval <= 0 {
+			continue
+		}
+		tbRate := 1e9 * float64(quantum) / float64(fillInterval)
+		if diff := math.Abs(tbRate - rate); diff/rate <= rateMargin {
+			// This quantum and fillInterval is OK
+			// Lock it first
+			tb.mu.Lock()
+			// Update fields
+			tb.OriginRate = originRate
+			tb.startTime = time.Now()
+			tb.quantum = quantum
+			tb.fillInterval = fillInterval
+			tb.avail = tb.capacity
+			// Then unlock
+			tb.mu.Unlock()
+			return
+		}
+	}
+	panic("cannot find suitable quantum for " + strconv.FormatFloat(rate, 'g', -1, 64))
 }
 
 // take is the internal version of Take - it takes the current time as
