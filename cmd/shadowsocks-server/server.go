@@ -196,12 +196,12 @@ func runWithUserID(port string, auth bool) {
 		log.Printf("Error: Cannot create cipher cache!")
 		os.Exit(1)
 	}
-    writeBucketCache, err := NewLRU(10000, nil)
+	writeBucketCache, err := NewLRU(10000, nil)
 	if err != nil {
 		log.Printf("Error: Cannot create write bucket cache!")
 		os.Exit(1)
 	}
-    readBucketCache, err := NewLRU(10000, nil)
+	readBucketCache, err := NewLRU(10000, nil)
 	if err != nil {
 		log.Printf("Error: Cannot create read bucket cache!")
 		os.Exit(1)
@@ -241,35 +241,37 @@ func runWithUserID(port string, auth bool) {
 			cipherCache.Add(userID, cipher)
 		}
 		pcipher := cipher.(*ss.Cipher)
-        ssconn := ss.NewConn(conn, pcipher.Copy())
-        ssconn.WriteBucket = getOrCreateBucket(writeBucketCache, userID, bandwidth)
-        ssconn.ReadBucket = getOrCreateBucket(readBucketCache, userID, bandwidth)
+		ssconn := ss.NewConn(conn, pcipher.Copy())
+		ssconn.WriteBucket = getOrCreateBucket(writeBucketCache, userID, bandwidth)
+		ssconn.ReadBucket = getOrCreateBucket(readBucketCache, userID, bandwidth)
 		go handleConnection(ssconn, auth, userID)
 	}
 }
 
-func getOrCreateBucket(cache *LRU, userID int, bandwidth int) *Bucket {
-    if bandwidth == -1 {
-        return nil
-    }
-    bucket, have := cache.Get(userID)
-    rate := bandwidth * 1000 * 1000 / 8
-    bursting := 8192
-    if !have {
-        // we should create a bucket
-        bucket = NewBucketWithRate(float64(rate), bursting, bandwidth)
-        cache.Add(userID, bucket)
-    } else {
-        if bucket.OriginRate != int64(bandwidth) {
-            // we should create a new bucket with new rate
-            bucket = NewBucketWithRate(float64(rate), bursting, bandwidth)
-            cache.Add(userID, bucket)
-        }
-    }
-    return bucket
+func getOrCreateBucket(cache *LRU, userID int, bandwidth int) *ss.Bucket {
+	if bandwidth == -1 {
+		return nil
+	}
+	var bucket *ss.Bucket
+	cbucket, have := cache.Get(userID)
+	rate := bandwidth * 1000 * 1000 / 8
+	var bursting int64 = 8192
+	if !have {
+		// we should create a bucket
+		bucket = ss.NewBucketWithRate(float64(rate), bursting, int64(bandwidth))
+		cache.Add(userID, bucket)
+	} else {
+		bucket = cbucket.(*ss.Bucket)
+		if bucket.OriginRate != int64(bandwidth) {
+			// we should create a new bucket with new rate
+			bucket = ss.NewBucketWithRate(float64(rate), bursting, int64(bandwidth))
+			cache.Add(userID, bucket)
+		}
+	}
+	return bucket
 }
 
-func getPasswordAndBandwidth(userID int) string, int {
+func getPasswordAndBandwidth(userID int) (string, int) {
 	if config.UseDatabase {
 		return getPasswordAndBandwidthFromDatabase(userID)
 	} else {
