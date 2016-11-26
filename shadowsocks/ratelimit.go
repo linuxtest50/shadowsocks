@@ -8,6 +8,7 @@
 package shadowsocks
 
 import (
+	// "log"
 	"math"
 	"strconv"
 	"sync"
@@ -21,6 +22,7 @@ type Bucket struct {
 	capacity     int64
 	quantum      int64
 	fillInterval time.Duration
+	OriginRate   int64
 
 	// The mutex guards the fields following it.
 	mu sync.Mutex
@@ -29,9 +31,8 @@ type Bucket struct {
 	// in the bucket, as of availTick ticks from startTime.
 	// It will be negative when there are consumers
 	// waiting for tokens.
-	OriginRate int64
-	avail      int64
-	availTick  int64
+	avail     int64
+	availTick int64
 }
 
 // NewBucket returns a new token bucket that fills at the
@@ -115,6 +116,7 @@ func (tb *Bucket) Wait(count int64) {
 func (tb *Bucket) WaitMaxDuration(count int64, maxWait time.Duration) bool {
 	d, ok := tb.TakeMaxDuration(count, maxWait)
 	if d > 0 {
+		// log.Printf("Sleep Time: %v\n", d)
 		time.Sleep(d)
 	}
 	return ok
@@ -215,11 +217,13 @@ func (tb *Bucket) UpdateRate(rate float64, originRate int64) {
 			tb.mu.Lock()
 			// Update fields
 			tb.OriginRate = originRate
-			tb.startTime = time.Now()
 			tb.quantum = quantum
 			tb.fillInterval = fillInterval
+			tb.startTime = time.Now()
 			tb.avail = tb.capacity
+			tb.availTick = 0
 			// Then unlock
+			// log.Printf("quantum=%v, fillInterval=%v, originRate=%v\n", quantum, fillInterval, originRate)
 			tb.mu.Unlock()
 			return
 		}
