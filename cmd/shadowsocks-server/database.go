@@ -79,7 +79,7 @@ func saveToRedis(userID int, password string, bandwidth int) {
 	value := packCachedData(password, bandwidth)
 	conn := redisPool.Get()
 	defer conn.Close()
-	status, err := conn.Do("SET", key, value)
+	status, err := conn.Do("SET", key, value, "EX", "3600")
 	if debug {
 		debug.Printf("%v, %v\n", status, err)
 	}
