@@ -43,6 +43,8 @@ type Config struct {
 	// Database Related Config
 	UseDatabase bool   `json:"use_database"`
 	DatabaseURL string `json:"database_url"`
+	UseRedis    bool   `json:"use_redis"`
+	RedisServer string `json:"redis_server"`
 }
 
 var readTimeout time.Duration

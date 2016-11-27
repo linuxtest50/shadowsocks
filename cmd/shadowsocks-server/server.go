@@ -375,6 +375,13 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	if config.UseRedis {
+		err = initRedis(config.RedisServer)
+		if err != nil {
+			fmt.Print(err)
+			os.Exit(1)
+		}
+	}
 	// for port, password := range config.PortPassword {
 	// 	go run(port, password, config.Auth)
 	// }
