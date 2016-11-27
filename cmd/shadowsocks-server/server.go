@@ -101,22 +101,9 @@ func getRequest(conn *ss.Conn, auth bool) (host string, ota bool, err error) {
 	return
 }
 
-const logCntDelta = 100
-
-var connCnt int
-var nextLogConnCnt int = logCntDelta
-
 func handleConnection(conn *ss.Conn, auth bool, userID int) {
 	var host string
 
-	connCnt++ // this maybe not accurate, but should be enough
-	if connCnt-nextLogConnCnt >= 0 {
-		// XXX There's no xadd in the atomic package, so it's difficult to log
-		// the message only once with low cost. Also note nextLogConnCnt maybe
-		// added twice for current peak connection number level.
-		log.Printf("Number of client connections reaches %d\n", nextLogConnCnt)
-		nextLogConnCnt += logCntDelta
-	}
 	conn.UserID = uint32(userID)
 	conn.GetUserStatistic().IncConnections()
 
@@ -130,7 +117,6 @@ func handleConnection(conn *ss.Conn, auth bool, userID int) {
 		if debug {
 			debug.Printf("closed pipe %s<->%s\n", conn.RemoteAddr(), host)
 		}
-		connCnt--
 		if !closed {
 			conn.Close()
 		}
@@ -190,7 +176,6 @@ func runWithUserID(port string, auth bool) {
 		log.Printf("error listening port %v: %v\n", port, err)
 		os.Exit(1)
 	}
-	// cipherCache := make(map[int]*ss.Cipher)
 	cipherCache, err := NewLRU(10000, nil)
 	if err != nil {
 		log.Printf("Error: Cannot create cipher cache!")
@@ -263,9 +248,9 @@ func getOrCreateBucket(cache *LRU, userID int, bandwidth int) *ss.Bucket {
 	} else {
 		bucket = cbucket.(*ss.Bucket)
 		if bucket.OriginRate != int64(bandwidth) {
-			// we should create a new bucket with new rate
-			// BUG:
+			// For now we just update the rate for TokenBucket is OK
 			bucket.UpdateRate(float64(rate), int64(bandwidth))
+			// we should create a new bucket with new rate
 			// bucket = ss.NewBucketWithRate(float64(rate), bursting, int64(bandwidth))
 			// cache.Add(userID, bucket)
 		}
