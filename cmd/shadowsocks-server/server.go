@@ -196,12 +196,14 @@ func runWithUserID(port string, auth bool) {
 		conn, err := ln.Accept()
 		if err != nil {
 			// listener maybe closed to update password
-			debug.Printf("accept error: %v\n", err)
-			return
+			log.Printf("accept error: %v\n", err)
+			continue
 		}
 		buf := make([]byte, 4)
 		if _, err = io.ReadFull(conn, buf); err != nil {
-			return
+			log.Printf("Read UserID error\n")
+			conn.Close()
+			continue
 		}
 		userID := ss.Byte2UserID(buf)
 		log.Printf("Got New Connection for UserID: %d\n", userID)
