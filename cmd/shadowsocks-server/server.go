@@ -170,6 +170,43 @@ func waitSignal() {
 	}
 }
 
+func handleAccepted(conn net.Conn, auth bool, cipherCache, writeBucketCache, readBucketCache *LRU) {
+	var err error
+	buf := make([]byte, 4)
+	if _, err = io.ReadFull(conn, buf); err != nil {
+		log.Printf("Read UserID error\n")
+		conn.Close()
+		return
+	}
+	userID := ss.Byte2UserID(buf)
+	log.Printf("Got New Connection for UserID: %d\n", userID)
+	password, bandwidth := getPasswordAndBandwidth(userID)
+	if password == "" {
+		log.Printf("Error do not have user for ID: %d\n", userID)
+		conn.Close()
+		return
+	}
+	// Creating cipher upon first connection.
+	cipher, have := cipherCache.Get(userID)
+	us := ss.GetUserStatistic(uint32(userID))
+	us.IncInBytes(4)
+	if !have {
+		cipher, err = ss.NewCipher(config.Method, password)
+		if err != nil {
+			log.Printf("Error generating cipher for UserID: %d %v\n", userID, err)
+			conn.Close()
+			return
+		}
+		log.Printf("Create cipher for UserID: %d", userID)
+		cipherCache.Add(userID, cipher)
+	}
+	pcipher := cipher.(*ss.Cipher)
+	ssconn := ss.NewConn(conn, pcipher.Copy())
+	ssconn.WriteBucket = getOrCreateBucket(writeBucketCache, userID, bandwidth)
+	ssconn.ReadBucket = getOrCreateBucket(readBucketCache, userID, bandwidth)
+	handleConnection(ssconn, auth, userID)
+}
+
 func runWithUserID(port string, auth bool) {
 	ln, err := net.Listen("tcp", ":"+port)
 	if err != nil {
@@ -199,39 +236,7 @@ func runWithUserID(port string, auth bool) {
 			log.Printf("accept error: %v\n", err)
 			continue
 		}
-		buf := make([]byte, 4)
-		if _, err = io.ReadFull(conn, buf); err != nil {
-			log.Printf("Read UserID error\n")
-			conn.Close()
-			continue
-		}
-		userID := ss.Byte2UserID(buf)
-		log.Printf("Got New Connection for UserID: %d\n", userID)
-		password, bandwidth := getPasswordAndBandwidth(userID)
-		if password == "" {
-			log.Printf("Error do not have user for ID: %d\n", userID)
-			conn.Close()
-			continue
-		}
-		// Creating cipher upon first connection.
-		cipher, have := cipherCache.Get(userID)
-		us := ss.GetUserStatistic(uint32(userID))
-		us.IncInBytes(4)
-		if !have {
-			cipher, err = ss.NewCipher(config.Method, password)
-			if err != nil {
-				log.Printf("Error generating cipher for UserID: %d %v\n", userID, err)
-				conn.Close()
-				continue
-			}
-			log.Printf("Create cipher for UserID: %d", userID)
-			cipherCache.Add(userID, cipher)
-		}
-		pcipher := cipher.(*ss.Cipher)
-		ssconn := ss.NewConn(conn, pcipher.Copy())
-		ssconn.WriteBucket = getOrCreateBucket(writeBucketCache, userID, bandwidth)
-		ssconn.ReadBucket = getOrCreateBucket(readBucketCache, userID, bandwidth)
-		go handleConnection(ssconn, auth, userID)
+		go handleAccepted(conn, auth, cipherCache, writeBucketCache, readBucketCache)
 	}
 }
 
