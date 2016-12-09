@@ -6,6 +6,7 @@ package main
 import (
 	"container/list"
 	"errors"
+	"sync"
 )
 
 // EvictCallback is used to get a callback when a cache entry is evicted
@@ -18,6 +19,7 @@ type LRU struct {
 	evictList *list.List
 	items     map[int]*list.Element
 	onEvict   EvictCallback
+	lock      sync.Mutex
 }
 
 // entry is used to hold a value in the evictList
@@ -43,6 +45,8 @@ func NewLRU(size int, onEvict EvictCallback) (*LRU, error) {
 
 // Purge is used to completely clear the cache
 func (c *LRU) Purge() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	for k, v := range c.items {
 		if c.onEvict != nil {
 			c.onEvict(k, v.Value.(*entry).value)
@@ -55,6 +59,8 @@ func (c *LRU) Purge() {
 
 // Add adds a value to the cache.  Returns true if an eviction occured.
 func (c *LRU) Add(key int, value interface{}) bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	size := 1
 	// Check for existing item
 	if ent, ok := c.items[key]; ok {
@@ -101,6 +107,8 @@ func (c *LRU) Add(key int, value interface{}) bool {
 
 // Get looks up a key's value from the cache.
 func (c *LRU) Get(key int) (value interface{}, ok bool) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	if ent, ok := c.items[key]; ok {
 		c.evictList.MoveToFront(ent)
 		return ent.Value.(*entry).value, true
@@ -127,6 +135,8 @@ func (c *LRU) Peek(key int) (value interface{}, size int, ok bool) {
 // Remove removes the provided key from the cache, returning if the
 // key was contained.
 func (c *LRU) Remove(key int) bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	if ent, ok := c.items[key]; ok {
 		c.removeElement(ent)
 		return true
@@ -136,6 +146,8 @@ func (c *LRU) Remove(key int) bool {
 
 // RemoveOldest removes the oldest item from the cache.
 func (c *LRU) RemoveOldest() (int, interface{}, int, bool) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	ent := c.evictList.Back()
 	if ent != nil {
 		c.removeElement(ent)
