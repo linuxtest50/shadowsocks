@@ -171,6 +171,12 @@ func waitSignal() {
 }
 
 func handleAccepted(conn net.Conn, auth bool, cipherCache, writeBucketCache, readBucketCache *LRU) {
+	lcfg := GetLicenseLimit()
+	if lcfg.IsExpired() {
+		debug.Printf("License is Expired!")
+		conn.Close()
+		return
+	}
 	var err error
 	buf := make([]byte, 4)
 	if _, err = io.ReadFull(conn, buf); err != nil {
@@ -185,6 +191,9 @@ func handleAccepted(conn net.Conn, auth bool, cipherCache, writeBucketCache, rea
 		log.Printf("Error do not have user for ID: %d\n", userID)
 		conn.Close()
 		return
+	}
+	if bandwidth > lcfg.MaxBandwidth {
+		bandwidth = lcfg.MaxBandwidth
 	}
 	// Creating cipher upon first connection.
 	cipher, have := cipherCache.Get(userID)
@@ -361,6 +370,19 @@ func main() {
 		if err != nil {
 			fmt.Print(err)
 			os.Exit(1)
+		}
+		err = initLicense()
+		if err != nil {
+			fmt.Print(err)
+			os.Exit(1)
+		} else {
+			lcfg := GetLicenseLimit()
+			if lcfg.IsExpired() {
+				fmt.Println("License is Expired")
+			} else {
+				fmt.Println("License is Valid")
+			}
+			fmt.Printf("Expire: %v, Max Users: %d, Max Servers: %d, Max Bandwidth: %d\n", lcfg.Expire, lcfg.MaxUsers, lcfg.MaxServers, lcfg.MaxBandwidth)
 		}
 	}
 	if config.UseRedis {

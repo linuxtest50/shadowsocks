@@ -157,3 +157,38 @@ func queryDatabase(userID int) (*SSUser, error) {
 	}
 	return ret, nil
 }
+
+type License struct {
+	FingerPrint string
+	License     string
+}
+
+func loadLicense() (*License, error) {
+	sql := fmt.Sprintf("SELECT fingerprint, license FROM db_license LIMIT 1;")
+	tx, err := db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Commit()
+	rows, err := tx.Query(sql)
+	if err != nil {
+		return nil, err
+	}
+	if rows == nil {
+		return nil, nil
+	}
+	defer rows.Close()
+	var ret *License = nil
+	for rows.Next() {
+		if ret != nil {
+			continue
+		}
+		license := new(License)
+		row_err := rows.Scan(&license.FingerPrint, &license.License)
+		if row_err != nil {
+			return nil, err
+		}
+		ret = license
+	}
+	return ret, nil
+}
