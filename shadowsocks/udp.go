@@ -11,7 +11,10 @@ type UDPConn struct {
 	readBuf []byte
 	// writeBuf []byte
 	// for shadowsocks-go
-	natlist NATlist
+	natlist     NATlist
+	UserID      uint32
+	WriteBucket *Bucket
+	ReadBucket  *Bucket
 }
 
 func UDPDecryptData(n int, data []byte, cipher *Cipher, output []byte) (int, error) {
@@ -38,6 +41,10 @@ func NewUDPConn(c *net.UDPConn, cipher *Cipher) *UDPConn {
 		// for shadowsocks-go
 		natlist: NATlist{conns: map[string]*CachedUDPConn{}},
 	}
+}
+
+func (c *UDPConn) GetUserStatistic() *UserStatistic {
+	return GetUserStatistic(c.UserID)
 }
 
 func (c *UDPConn) Close() error {
@@ -131,5 +138,11 @@ func (c *UDPConn) WriteToUDP(b []byte, dst *net.UDPAddr) (n int, err error) {
 
 	c.encrypt(cipherData[dataStart:], b)
 	n, err = c.UDPConn.WriteToUDP(cipherData, dst)
+	if n > 0 {
+		c.GetUserStatistic().IncOutBytes(n)
+		if c.WriteBucket != nil {
+			c.WriteBucket.WaitMaxDuration(int64(n), RateLimitWaitMaxDuration)
+		}
+	}
 	return
 }

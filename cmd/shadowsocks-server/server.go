@@ -239,7 +239,7 @@ func runTCPWithUserID(port string, auth bool, writeBucketCache, readBucketCache 
 	}
 }
 
-func handleReadFromUDP(n int, src *net.UDPAddr, data []byte, cipherCache, writeBucketCache, readBucketCache *LRU) {
+func handleReadFromUDP(conn *net.UDPConn, n int, src *net.UDPAddr, data []byte, cipherCache, writeBucketCache, readBucketCache *LRU) {
 	defer ss.LeakyBuffer.Put(data)
 	lcfg := GetLicenseLimit()
 	if lcfg.IsExpired() {
@@ -266,7 +266,7 @@ func handleReadFromUDP(n int, src *net.UDPAddr, data []byte, cipherCache, writeB
 	// Creating cipher upon first connection.
 	cipher, have := cipherCache.Get(userID)
 	us := ss.GetUserStatistic(uint32(userID))
-	us.IncInBytes(4)
+	us.IncInBytes(n)
 	if !have {
 		cipher, err = ss.NewCipher(config.Method, password)
 		if err != nil {
@@ -282,13 +282,16 @@ func handleReadFromUDP(n int, src *net.UDPAddr, data []byte, cipherCache, writeB
 	if err != nil {
 		log.Printf("Error: %v", err)
 	}
-	udpConn := ss.NewUDPConn(nil, pcipher)
+	udpConn := ss.NewUDPConn(conn, pcipher)
+	udpConn.UserID = uint32(userID)
+	udpConn.WriteBucket = getOrCreateBucket(writeBucketCache, userID, bandwidth)
+	udpConn.ReadBucket = getOrCreateBucket(readBucketCache, userID, bandwidth)
 	go udpConn.HandleUDPConnection(dn, src, ddata)
 }
 
 func runUDPWithUserID(port string, auth bool, writeBucketCache, readBucketCache *LRU) {
 	port_i, _ := strconv.Atoi(port)
-	ln, err := net.ListenUDP("udp", &net.UDPAddr{
+	conn, err := net.ListenUDP("udp", &net.UDPAddr{
 		IP:   net.IPv6zero,
 		Port: port_i,
 	})
@@ -304,12 +307,12 @@ func runUDPWithUserID(port string, auth bool, writeBucketCache, readBucketCache 
 	log.Printf("server listening UDP port %v ...\n", port)
 	for {
 		buf := ss.LeakyBuffer.Get()
-		n, src, err := ln.ReadFromUDP(buf)
+		n, src, err := conn.ReadFromUDP(buf)
 		if err != nil {
 			log.Printf("Read packet from UDP error: %v\n", err)
 			continue
 		}
-		go handleReadFromUDP(n, src, buf, cipherCache, writeBucketCache, readBucketCache)
+		go handleReadFromUDP(conn, n, src, buf, cipherCache, writeBucketCache, readBucketCache)
 	}
 }
 
