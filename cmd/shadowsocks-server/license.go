@@ -24,12 +24,7 @@ func GetLicenseLimit() *LicenseConfig {
 	return LicenseLimit
 }
 
-func UpdateLicenseLimit() {
-	license, err := loadLicense()
-	if err != nil {
-		fmt.Println("Cannot Load License Exit!")
-		os.Exit(1)
-	}
+func UpdateLicenseLimit(license *License) {
 	cfg, err := VerifyLicense(license)
 	if err != nil {
 		cfg = &LicenseConfig{}
@@ -39,10 +34,20 @@ func UpdateLicenseLimit() {
 	LLock.Unlock()
 }
 
-func LicenseChecker() {
+func LicenseChecker(initial *License) {
+	var last *License = initial
 	for {
 		time.Sleep(60 * time.Second)
-		UpdateLicenseLimit()
+		license, err := loadLicense()
+		if err != nil {
+			fmt.Println("Cannot Load License Exit!")
+			os.Exit(1)
+		}
+		if license.License == last.License {
+			continue
+		}
+		last = license
+		UpdateLicenseLimit(license)
 		lcfg := GetLicenseLimit()
 		if lcfg.IsExpired() {
 			fmt.Println("License is Expired!")
@@ -63,7 +68,7 @@ func initLicense() error {
 		cfg = &LicenseConfig{}
 	}
 	LicenseLimit = cfg
-	go LicenseChecker()
+	go LicenseChecker(license)
 	return nil
 }
 
