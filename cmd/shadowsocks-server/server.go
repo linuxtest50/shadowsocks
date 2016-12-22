@@ -206,7 +206,7 @@ func handleAccepted(conn net.Conn, auth bool, cipherCache, writeBucketCache, rea
 			conn.Close()
 			return
 		}
-		log.Printf("Create cipher for UserID: %d", userID)
+		log.Printf("Create cipher for UserID: %d on TCP", userID)
 		cipherCache.Add(userID, cipher)
 	}
 	pcipher := cipher.(*ss.Cipher)
@@ -216,10 +216,10 @@ func handleAccepted(conn net.Conn, auth bool, cipherCache, writeBucketCache, rea
 	handleConnection(ssconn, auth, userID)
 }
 
-func runWithUserID(port string, auth bool) {
+func runTCPWithUserID(port string, auth bool, writeBucketCache, readBucketCache *LRU) {
 	ln, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		log.Printf("error listening port %v: %v\n", port, err)
+		log.Printf("error listening TCP port %v: %v\n", port, err)
 		os.Exit(1)
 	}
 	cipherCache, err := NewLRU(10000, nil)
@@ -227,17 +227,7 @@ func runWithUserID(port string, auth bool) {
 		log.Printf("Error: Cannot create cipher cache!")
 		os.Exit(1)
 	}
-	writeBucketCache, err := NewLRU(10000, nil)
-	if err != nil {
-		log.Printf("Error: Cannot create write bucket cache!")
-		os.Exit(1)
-	}
-	readBucketCache, err := NewLRU(10000, nil)
-	if err != nil {
-		log.Printf("Error: Cannot create read bucket cache!")
-		os.Exit(1)
-	}
-	log.Printf("server listening port %v ...\n", port)
+	log.Printf("server listening TCP port %v ...\n", port)
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -246,6 +236,80 @@ func runWithUserID(port string, auth bool) {
 			continue
 		}
 		go handleAccepted(conn, auth, cipherCache, writeBucketCache, readBucketCache)
+	}
+}
+
+func handleReadFromUDP(n int, src *net.UDPAddr, data []byte, cipherCache, writeBucketCache, readBucketCache *LRU) {
+	defer ss.LeakyBuffer.Put(data)
+	lcfg := GetLicenseLimit()
+	if lcfg.IsExpired() {
+		debug.Printf("License is Expired!")
+		return
+	}
+	var err error
+	if n < 4 {
+		log.Printf("Read UserID error\n")
+		return
+	}
+	buf := make([]byte, 4)
+	copy(buf, data[:4])
+	userID := ss.Byte2UserID(buf)
+	log.Printf("Got New Connection for UserID: %d\n", userID)
+	password, bandwidth := getPasswordAndBandwidth(userID)
+	if password == "" {
+		log.Printf("Error do not have user for ID: %d\n", userID)
+		return
+	}
+	if bandwidth > lcfg.MaxBandwidth {
+		bandwidth = lcfg.MaxBandwidth
+	}
+	// Creating cipher upon first connection.
+	cipher, have := cipherCache.Get(userID)
+	us := ss.GetUserStatistic(uint32(userID))
+	us.IncInBytes(4)
+	if !have {
+		cipher, err = ss.NewCipher(config.Method, password)
+		if err != nil {
+			log.Printf("Error generating cipher for UserID: %d %v\n", userID, err)
+			return
+		}
+		log.Printf("Create cipher for UserID: %d on UDP", userID)
+		cipherCache.Add(userID, cipher)
+	}
+	pcipher := cipher.(*ss.Cipher)
+	ddata := ss.LeakyBuffer.Get()
+	dn, err := ss.UDPDecryptData(n, data, pcipher, ddata)
+	if err != nil {
+		log.Printf("Error: %v", err)
+	}
+	udpConn := ss.NewUDPConn(nil, pcipher)
+	go udpConn.HandleUDPConnection(dn, src, ddata)
+}
+
+func runUDPWithUserID(port string, auth bool, writeBucketCache, readBucketCache *LRU) {
+	port_i, _ := strconv.Atoi(port)
+	ln, err := net.ListenUDP("udp", &net.UDPAddr{
+		IP:   net.IPv6zero,
+		Port: port_i,
+	})
+	if err != nil {
+		log.Printf("error listening UDP port %v: %v", port, err)
+		os.Exit(1)
+	}
+	cipherCache, err := NewLRU(10000, nil)
+	if err != nil {
+		log.Printf("Error: Cannot create cipher cache!")
+		os.Exit(1)
+	}
+	log.Printf("server listening UDP port %v ...\n", port)
+	for {
+		buf := ss.LeakyBuffer.Get()
+		n, src, err := ln.ReadFromUDP(buf)
+		if err != nil {
+			log.Printf("Read packet from UDP error: %v\n", err)
+			continue
+		}
+		go handleReadFromUDP(n, src, buf, cipherCache, writeBucketCache, readBucketCache)
 	}
 }
 
@@ -395,8 +459,19 @@ func main() {
 	// for port, password := range config.PortPassword {
 	// 	go run(port, password, config.Auth)
 	// }
+	writeBucketCache, err := NewLRU(10000, nil)
+	if err != nil {
+		log.Printf("Error: Cannot create write bucket cache!")
+		os.Exit(1)
+	}
+	readBucketCache, err := NewLRU(10000, nil)
+	if err != nil {
+		log.Printf("Error: Cannot create read bucket cache!")
+		os.Exit(1)
+	}
 	for port, _ := range config.PortPassword {
-		go runWithUserID(port, config.Auth)
+		go runTCPWithUserID(port, config.Auth, writeBucketCache, readBucketCache)
+		go runUDPWithUserID(port, config.Auth, writeBucketCache, readBucketCache)
 	}
 	go StartStatisticServer("127.0.0.1:8080")
 
