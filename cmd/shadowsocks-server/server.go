@@ -273,7 +273,7 @@ func handleReadFromUDP(conn *net.UDPConn, n int, src *net.UDPAddr, data []byte, 
 			log.Printf("Error generating cipher for UserID: %d %v\n", userID, err)
 			return
 		}
-		log.Printf("Create cipher for UserID: %d on UDP", userID)
+		log.Printf("Create cipher for UserID: %d on UDP\n", userID)
 		cipherCache.Add(userID, cipher)
 	}
 	pcipher := cipher.(*ss.Cipher)
@@ -286,6 +286,7 @@ func handleReadFromUDP(conn *net.UDPConn, n int, src *net.UDPAddr, data []byte, 
 	udpConn.UserID = uint32(userID)
 	udpConn.WriteBucket = getOrCreateBucket(writeBucketCache, userID, bandwidth)
 	udpConn.ReadBucket = getOrCreateBucket(readBucketCache, userID, bandwidth)
+	debug.Printf("Data: %v\n", ddata[:dn])
 	go udpConn.HandleUDPConnection(dn, src, ddata)
 }
 
