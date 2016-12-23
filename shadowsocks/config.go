@@ -99,6 +99,12 @@ func ParseConfig(path string) (config *Config, err error) {
 	}
 	readTimeout = time.Duration(config.Timeout) * time.Second
 	udpTimeout = time.Duration(config.Timeout) * time.Second
+	if udpTimeout == 0 {
+		udpTimeout = 60 * time.Second
+	}
+	if readTimeout == 0 {
+		readTimeout = 60 * time.Second
+	}
 	if strings.HasSuffix(strings.ToLower(config.Method), "-auth") {
 		config.Method = config.Method[:len(config.Method)-5]
 		config.Auth = true
@@ -146,4 +152,10 @@ func UpdateConfig(old, new *Config) {
 	old.Timeout = new.Timeout
 	readTimeout = time.Duration(old.Timeout) * time.Second
 	udpTimeout = time.Duration(old.Timeout) * time.Second
+	if udpTimeout == 0 {
+		udpTimeout = 60 * time.Second
+	}
+	if readTimeout == 0 {
+		readTimeout = 60 * time.Second
+	}
 }

@@ -1,6 +1,7 @@
 package shadowsocks
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -138,7 +139,7 @@ func ParseHeader(addr net.Addr) ([]byte, int) {
 	return buf[:1+iplen+2], 1 + iplen + 2
 }
 
-func Pipeloop(ss *UDPConn, srcaddr *net.UDPAddr, remote *CachedUDPConn) {
+func Pipeloop(ss *UDPConn, srcaddr *net.UDPAddr, remote *CachedUDPConn, auth bool) {
 	buf := leakyBuf.Get()
 	defer leakyBuf.Put(buf)
 	for {
@@ -148,30 +149,30 @@ func Pipeloop(ss *UDPConn, srcaddr *net.UDPAddr, remote *CachedUDPConn) {
 			if ne, ok := err.(*net.OpError); ok && (ne.Err == syscall.EMFILE || ne.Err == syscall.ENFILE) {
 				// log too many open file error
 				// EMFILE is process reaches open file limits, ENFILE is system limit
-				fmt.Println("[udp]read error:", err)
+				fmt.Println("[UDP] read error:", err)
 			} else if ne.Err.Error() == "use of closed network connection" {
-				fmt.Println("[udp]Connection Closing:", remote.LocalAddr())
+				fmt.Println("[UDP] Connection Closing:", remote.LocalAddr())
 			} else {
-				fmt.Println("[udp]error reading from:", remote.LocalAddr(), err)
+				fmt.Println("[UDP] error reading from:", remote.LocalAddr(), err)
 			}
 			return
 		}
 		// need improvement here
 		if N, ok := reqList.Get(raddr.String()); ok {
-			go ss.WriteToUDP(append(N.Req[:N.ReqLen], buf[:n]...), srcaddr)
+			go ss.WriteToUDP(append(N.Req[:N.ReqLen], buf[:n]...), srcaddr, auth)
 		} else {
 			header, hlen := ParseHeader(raddr)
-			go ss.WriteToUDP(append(header[:hlen], buf[:n]...), srcaddr)
+			go ss.WriteToUDP(append(header[:hlen], buf[:n]...), srcaddr, auth)
 		}
 	}
 }
 
-func (c *UDPConn) HandleUDPConnection(n int, src *net.UDPAddr, receive []byte) {
+func (c *UDPConn) HandleUDPConnection(n int, src *net.UDPAddr, receive []byte, requireAuth bool, iv []byte) {
 	var dstIP net.IP
 	var reqLen int
 	defer leakyBuf.Put(receive)
-
-	switch receive[idType] {
+	addrType := receive[idType]
+	switch addrType & AddrMask {
 	case typeIPv4:
 		reqLen = lenIPv4
 		dstIP = net.IP(receive[idIP0 : idIP0+net.IPv4len])
@@ -182,18 +183,24 @@ func (c *UDPConn) HandleUDPConnection(n int, src *net.UDPAddr, receive []byte) {
 		reqLen = int(receive[idDmLen]) + lenDmBase
 		dIP, err := net.ResolveIPAddr("ip", string(receive[idDm0:idDm0+receive[idDmLen]]))
 		if err != nil {
-			fmt.Sprintf("[udp]failed to resolve domain name: %s\n", string(receive[idDm0:idDm0+receive[idDmLen]]))
+			fmt.Printf("[UDP] failed to resolve domain name: %s\n", string(receive[idDm0:idDm0+receive[idDmLen]]))
 			return
 		}
 		dstIP = dIP.IP
 	default:
-		fmt.Sprintf("[udp]addr type %d not supported", receive[idType])
+		fmt.Printf("[UDP] addr type %d not supported\n", receive[idType])
+		return
+	}
+	auth := addrType&OneTimeAuthMask > 0
+	if auth != requireAuth {
+		fmt.Printf("[UDP] require auth\n")
 		return
 	}
 	dst := &net.UDPAddr{
 		IP:   dstIP,
 		Port: int(binary.BigEndian.Uint16(receive[reqLen-2 : reqLen])),
 	}
+	fmt.Printf("[UDP] Address Type %d, Address: %v, Port: %v\n", addrType&AddrMask, dst.IP, dst.Port)
 	if _, ok := reqList.Get(dst.String()); !ok {
 		req := make([]byte, reqLen)
 		for i := 0; i < reqLen; i++ {
@@ -202,19 +209,33 @@ func (c *UDPConn) HandleUDPConnection(n int, src *net.UDPAddr, receive []byte) {
 		reqList.Put(dst.String(), &ReqNode{req, reqLen})
 	}
 
+	if auth {
+		authData := receive[n-10 : n]
+		key := c.GetKey()
+		actualHmacSha1Buf := HmacSha1(append(iv, key...), receive[:n-10])
+		if !bytes.Equal(authData, actualHmacSha1Buf) {
+			fmt.Printf("verify one time auth failed\n")
+			return
+		}
+	}
+
 	remote, exist, err := c.natlist.Get(src.String())
 	if err != nil {
 		return
 	}
 	if !exist {
 		go func() {
-			Pipeloop(c, src, remote)
+			Pipeloop(c, src, remote, auth)
 			c.natlist.Delete(src.String())
 		}()
 	}
 	remote.SetDeadline(time.Now().Add(udpTimeout))
 	go func() {
-		_, err = remote.WriteToUDP(receive[reqLen:n], dst)
+		if auth {
+			_, err = remote.WriteToUDP(receive[reqLen:n-10], dst)
+		} else {
+			_, err = remote.WriteToUDP(receive[reqLen:n], dst)
+		}
 		if err != nil {
 			if ne, ok := err.(*net.OpError); ok && (ne.Err == syscall.EMFILE || ne.Err == syscall.ENFILE) {
 				// log too many open file error
@@ -226,6 +247,5 @@ func (c *UDPConn) HandleUDPConnection(n int, src *net.UDPAddr, receive []byte) {
 			c.natlist.Delete(src.String())
 		}
 	}()
-	// Pipeloop
 	return
 }

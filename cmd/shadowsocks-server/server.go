@@ -239,7 +239,7 @@ func runTCPWithUserID(port string, auth bool, writeBucketCache, readBucketCache 
 	}
 }
 
-func handleReadFromUDP(conn *net.UDPConn, n int, src *net.UDPAddr, data []byte, cipherCache, writeBucketCache, readBucketCache *LRU) {
+func handleReadFromUDP(conn *net.UDPConn, auth bool, n int, src *net.UDPAddr, data []byte, cipherCache, writeBucketCache, readBucketCache *LRU) {
 	defer ss.LeakyBuffer.Put(data)
 	lcfg := GetLicenseLimit()
 	if lcfg.IsExpired() {
@@ -278,7 +278,7 @@ func handleReadFromUDP(conn *net.UDPConn, n int, src *net.UDPAddr, data []byte, 
 	}
 	pcipher := cipher.(*ss.Cipher)
 	ddata := ss.LeakyBuffer.Get()
-	dn, err := ss.UDPDecryptData(n, data, pcipher, ddata)
+	dn, iv, err := ss.UDPDecryptData(n, data, pcipher, ddata)
 	if err != nil {
 		log.Printf("Error: %v", err)
 	}
@@ -286,8 +286,7 @@ func handleReadFromUDP(conn *net.UDPConn, n int, src *net.UDPAddr, data []byte, 
 	udpConn.UserID = uint32(userID)
 	udpConn.WriteBucket = getOrCreateBucket(writeBucketCache, userID, bandwidth)
 	udpConn.ReadBucket = getOrCreateBucket(readBucketCache, userID, bandwidth)
-	debug.Printf("Data: %v\n", ddata[:dn])
-	go udpConn.HandleUDPConnection(dn, src, ddata)
+	go udpConn.HandleUDPConnection(dn, src, ddata, auth, iv)
 }
 
 func runUDPWithUserID(port string, auth bool, writeBucketCache, readBucketCache *LRU) {
@@ -313,7 +312,7 @@ func runUDPWithUserID(port string, auth bool, writeBucketCache, readBucketCache 
 			log.Printf("Read packet from UDP error: %v\n", err)
 			continue
 		}
-		go handleReadFromUDP(conn, n, src, buf, cipherCache, writeBucketCache, readBucketCache)
+		go handleReadFromUDP(conn, auth, n, src, buf, cipherCache, writeBucketCache, readBucketCache)
 	}
 }
 

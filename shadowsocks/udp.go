@@ -17,18 +17,18 @@ type UDPConn struct {
 	ReadBucket  *Bucket
 }
 
-func UDPDecryptData(n int, data []byte, cipher *Cipher, output []byte) (int, error) {
+func UDPDecryptData(n int, data []byte, cipher *Cipher, output []byte) (int, []byte, error) {
 	if (n - 4) < cipher.info.ivLen {
-		return 0, errors.New("Cannot decrypt")
+		return 0, nil, errors.New("Cannot decrypt")
 	}
 	iv := make([]byte, cipher.info.ivLen)
 	copy(iv, data[4:4+cipher.info.ivLen])
 	if err := cipher.initDecrypt(iv); err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	cipher.decrypt(output[0:n-cipher.info.ivLen-4], data[cipher.info.ivLen+4:n])
 	ret := n - cipher.info.ivLen - 4
-	return ret, nil
+	return ret, iv, nil
 }
 
 func NewUDPConn(c *net.UDPConn, cipher *Cipher) *UDPConn {
@@ -43,13 +43,24 @@ func NewUDPConn(c *net.UDPConn, cipher *Cipher) *UDPConn {
 	}
 }
 
+func (c *UDPConn) GetIv() (iv []byte) {
+	iv = make([]byte, len(c.iv))
+	copy(iv, c.iv)
+	return
+}
+
+func (c *UDPConn) GetKey() (key []byte) {
+	key = make([]byte, len(c.key))
+	copy(key, c.key)
+	return
+}
+
 func (c *UDPConn) GetUserStatistic() *UserStatistic {
 	return GetUserStatistic(c.UserID)
 }
 
 func (c *UDPConn) Close() error {
 	leakyBuf.Put(c.readBuf)
-	//leakyBuf.Put(c.writeBuf)
 	return c.UDPConn.Close()
 }
 
@@ -124,7 +135,7 @@ func (c *UDPConn) WriteTo(b []byte, dst net.Addr) (n int, err error) {
 	return
 }
 
-func (c *UDPConn) WriteToUDP(b []byte, dst *net.UDPAddr) (n int, err error) {
+func (c *UDPConn) WriteToUDP(b []byte, dst *net.UDPAddr, auth bool) (n int, err error) {
 	var iv []byte
 	iv, err = c.initEncrypt()
 	if err != nil {
@@ -132,11 +143,20 @@ func (c *UDPConn) WriteToUDP(b []byte, dst *net.UDPAddr) (n int, err error) {
 	}
 	// Put initialization vector in buffer, do a single write to send both
 	// iv and data.
-	cipherData := make([]byte, len(b)+len(iv))
+	dataLen := len(b) + len(iv)
+	if auth {
+		dataLen += 10
+	}
+	cipherData := make([]byte, dataLen)
 	copy(cipherData, iv)
 	dataStart := len(iv)
-
-	c.encrypt(cipherData[dataStart:], b)
+	if auth {
+		key := c.GetKey()
+		authHmacSha1 := HmacSha1(append(iv, key...), b)
+		c.encrypt(cipherData[dataStart:], append(b, authHmacSha1...))
+	} else {
+		c.encrypt(cipherData[dataStart:], b)
+	}
 	n, err = c.UDPConn.WriteToUDP(cipherData, dst)
 	if n > 0 {
 		c.GetUserStatistic().IncOutBytes(n)
