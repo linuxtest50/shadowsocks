@@ -12,7 +12,6 @@ import (
 	"os"
 	"path"
 	"strconv"
-	"strings"
 	"time"
 
 	ss "github.com/shadowsocks/shadowsocks-go/shadowsocks"
@@ -241,7 +240,7 @@ func connectToServerWithUserID(serverId int, rawaddr []byte, addr string, userID
 	se := servers.srvCipher[serverId]
 	remote, err = ss.DialWithRawAddrAndUserID(rawaddr, se.server, se.cipher.Copy(), ss.UserID2Byte(userID))
 	if err != nil {
-		log.Println("error connecting to shadowsocks server:", err)
+		log.Println("error connecting to shadowsocks server:[TCP]", err)
 		const maxFailCnt = 30
 		if servers.failCnt[serverId] < maxFailCnt {
 			servers.failCnt[serverId]++
@@ -377,7 +376,7 @@ func handleConnection(conn net.Conn, userID int) {
 	debug.Println("closed connection to", addr)
 }
 
-func run(listenAddr string, userID int) {
+func runTCP(listenAddr string, userID int) {
 	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		log.Fatal(err)
@@ -390,6 +389,28 @@ func run(listenAddr string, userID int) {
 			continue
 		}
 		go handleConnection(conn, userID)
+	}
+}
+
+func runNameServer(listenAddr string, userID int) {
+	uaddr, err := net.ResolveUDPAddr("udp", listenAddr)
+	if err != nil {
+		log.Printf("Error: cannot resolve UDP address: %v\n", listenAddr)
+		os.Exit(1)
+	}
+	conn, err := net.ListenUDP("udp", uaddr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("Starting local Name Server at %s\n", uaddr)
+	for {
+		buf := ss.LeakyBuffer.Get()
+		n, src, err := conn.ReadFromUDP(buf)
+		if err != nil {
+			log.Printf("Read packet from UDP error: %v\n", err)
+			continue
+		}
+		go handleUDPPacket(conn, n, src, buf, userID)
 	}
 }
 
@@ -418,11 +439,6 @@ func main() {
 
 	cmdConfig.Server = cmdServer
 	ss.SetDebug(debug)
-
-	if strings.HasSuffix(cmdConfig.Method, "-auth") {
-		cmdConfig.Method = cmdConfig.Method[:len(cmdConfig.Method)-5]
-		cmdConfig.Auth = true
-	}
 
 	exists, err := ss.IsFileExists(configFile)
 	// If no config file in current directory, try search it in the binary directory
@@ -463,6 +479,10 @@ func main() {
 	}
 
 	parseServerConfig(config)
-
-	run(cmdLocal+":"+strconv.Itoa(config.LocalPort), config.UserID)
+	if config.EnableDNSProxy {
+		TargetNameServer = config.TargetDNSServer
+		dnsProxyPort := config.DNSProxyPort
+		go runNameServer(fmt.Sprintf("%s:%d", cmdLocal, dnsProxyPort), config.UserID)
+	}
+	runTCP(cmdLocal+":"+strconv.Itoa(config.LocalPort), config.UserID)
 }

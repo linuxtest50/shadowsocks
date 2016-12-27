@@ -68,3 +68,9 @@ func UserID2Byte(userID int) []byte {
 	binary.BigEndian.PutUint32(ret, uint32(userID))
 	return ret
 }
+
+func Port2Byte(port int) []byte {
+	ret := make([]byte, 2)
+	binary.BigEndian.PutUint16(ret, uint16(port))
+	return ret
+}

@@ -161,6 +161,7 @@ func Pipeloop(ss *UDPConn, srcaddr *net.UDPAddr, remote *CachedUDPConn, auth boo
 		if N, ok := reqList.Get(raddr.String()); ok {
 			go ss.WriteToUDP(append(N.Req[:N.ReqLen], buf[:n]...), srcaddr, auth)
 		} else {
+			fmt.Printf("%v\n", raddr)
 			header, hlen := ParseHeader(raddr)
 			go ss.WriteToUDP(append(header[:hlen], buf[:n]...), srcaddr, auth)
 		}

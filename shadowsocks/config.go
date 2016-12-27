@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	// "log"
+	"net"
 	"os"
 	"reflect"
 	"strings"
@@ -29,6 +30,11 @@ type Config struct {
 	// following options are only used by server
 	PortPassword map[string]string `json:"port_password"`
 	Timeout      int               `json:"timeout"`
+
+	// following options are DNS proxy related config
+	EnableDNSProxy  bool   `json:"enable_dns_proxy"`
+	TargetDNSServer string `json:"target_dns_server"`
+	DNSProxyPort    int    `json:"dns_proxy_port"`
 
 	// following options are only used by client
 
@@ -108,6 +114,17 @@ func ParseConfig(path string) (config *Config, err error) {
 	if strings.HasSuffix(strings.ToLower(config.Method), "-auth") {
 		config.Method = config.Method[:len(config.Method)-5]
 		config.Auth = true
+	}
+	fmt.Print(config)
+	if config.EnableDNSProxy {
+		_, err := net.ResolveUDPAddr("udp", config.TargetDNSServer)
+		fmt.Print(err)
+		if err != nil {
+			config.EnableDNSProxy = false
+		}
+		if config.DNSProxyPort == 0 {
+			config.DNSProxyPort = 53
+		}
 	}
 	return
 }

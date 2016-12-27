@@ -1,6 +1,7 @@
 package shadowsocks
 
 import (
+	"bytes"
 	"errors"
 	"net"
 )
@@ -77,6 +78,16 @@ func (c *UDPConn) Read(b []byte) (n int, err error) {
 	}
 	c.decrypt(b[0:n-c.info.ivLen], buf[c.info.ivLen:n])
 	n = n - c.info.ivLen
+	if c.ota {
+		key := c.GetKey()
+		authData := b[n-10 : n]
+		authHmacSha1 := HmacSha1(append(iv, key...), b[:n-10])
+		if !bytes.Equal(authData, authHmacSha1) {
+			err = errors.New("[udp]auth failed")
+			return
+		}
+		n = n - 10
+	}
 	return
 }
 
@@ -165,4 +176,42 @@ func (c *UDPConn) WriteToUDP(b []byte, dst *net.UDPAddr, auth bool) (n int, err 
 		}
 	}
 	return
+}
+
+func (c *UDPConn) WriteWithUserID(b []byte, userID []byte) (n int, err error) {
+	var iv []byte
+	iv, err = c.initEncrypt()
+	if err != nil {
+		return
+	}
+	// Put initialization vector in buffer, do a single write to send both
+	// iv and data.
+	dataLen := len(b) + len(iv) + 4
+	if c.ota {
+		dataLen += 10
+	}
+	cipherData := make([]byte, dataLen)
+	copy(cipherData, userID)
+	copy(cipherData[4:], iv)
+	dataStart := len(iv) + 4
+	if c.ota {
+		key := c.GetKey()
+		authHmacSha1 := HmacSha1(append(iv, key...), b)
+		c.encrypt(cipherData[dataStart:], append(b, authHmacSha1...))
+	} else {
+		c.encrypt(cipherData[dataStart:], b)
+	}
+
+	n, err = c.UDPConn.Write(cipherData)
+	if n > 0 {
+		c.GetUserStatistic().IncOutBytes(n)
+		if c.WriteBucket != nil {
+			c.WriteBucket.WaitMaxDuration(int64(n), RateLimitWaitMaxDuration)
+		}
+	}
+	return
+}
+
+func (c *UDPConn) IsOta() bool {
+	return c.ota
 }
