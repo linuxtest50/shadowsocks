@@ -108,7 +108,7 @@ func createLicenseConfig(data map[string]string) *LicenseConfig {
 	}
 	expire, have := data["expire"]
 	if have {
-		texpire, err := time.Parse("2006-1-1", expire)
+		texpire, err := time.Parse("2006-01-02", expire)
 		if err == nil {
 			ret.Expire = texpire
 		}
