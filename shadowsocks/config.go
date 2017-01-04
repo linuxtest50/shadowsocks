@@ -115,7 +115,6 @@ func ParseConfig(path string) (config *Config, err error) {
 		config.Method = config.Method[:len(config.Method)-5]
 		config.Auth = true
 	}
-	fmt.Print(config)
 	if config.EnableDNSProxy {
 		_, err := net.ResolveUDPAddr("udp", config.TargetDNSServer)
 		fmt.Print(err)

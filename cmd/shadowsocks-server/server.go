@@ -371,10 +371,6 @@ func unifyPortPassword(config *ss.Config) (err error) {
 		}
 		port := strconv.Itoa(config.ServerPort)
 		config.PortPassword = map[string]string{port: config.Password}
-	} else {
-		if config.Password != "" || config.ServerPort != 0 {
-			fmt.Fprintln(os.Stderr, "given port_password, ignore server_port and password option")
-		}
 	}
 	return
 }
