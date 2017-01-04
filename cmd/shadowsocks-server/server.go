@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"syscall"
@@ -105,7 +106,7 @@ func handleConnection(conn *ss.Conn, auth bool, userID int) {
 	var host string
 
 	conn.UserID = uint32(userID)
-	conn.GetUserStatistic().IncConnections()
+	conn.GetUserStatisticService().IncConnections(conn.UserID)
 
 	// function arguments are always evaluated, so surround debug statement
 	// with if statement
@@ -157,15 +158,16 @@ func handleConnection(conn *ss.Conn, auth bool, userID int) {
 	return
 }
 
-func waitSignal() {
+func waitSignal(enableProfile bool) {
 	var sigChan = make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGHUP)
+	signal.Notify(sigChan, os.Interrupt, os.Kill, syscall.SIGHUP)
 	for sig := range sigChan {
 		if sig == syscall.SIGHUP {
 		} else {
-			// is this going to happen?
-			log.Printf("caught signal %v, exit", sig)
-			os.Exit(0)
+			if enableProfile {
+				pprof.StopCPUProfile()
+			}
+			log.Fatal("Server Exit\n")
 		}
 	}
 }
@@ -185,7 +187,7 @@ func handleAccepted(conn net.Conn, auth bool, cipherCache, writeBucketCache, rea
 		return
 	}
 	userID := ss.Byte2UserID(buf)
-	log.Printf("Got New Connection for UserID: %d\n", userID)
+	// log.Printf("Got New Connection for UserID: %d\n", userID)
 	password, bandwidth := getPasswordAndBandwidth(userID)
 	if password == "" {
 		log.Printf("Error do not have user for ID: %d\n", userID)
@@ -197,8 +199,8 @@ func handleAccepted(conn net.Conn, auth bool, cipherCache, writeBucketCache, rea
 	}
 	// Creating cipher upon first connection.
 	cipher, have := cipherCache.Get(userID)
-	us := ss.GetUserStatistic(uint32(userID))
-	us.IncInBytes(4)
+	us := ss.GetUserStatisticService()
+	us.IncInBytes(uint32(userID), 4)
 	if !have {
 		cipher, err = ss.NewCipher(config.Method, password)
 		if err != nil {
@@ -265,8 +267,8 @@ func handleReadFromUDP(conn *net.UDPConn, auth bool, n int, src *net.UDPAddr, da
 	}
 	// Creating cipher upon first connection.
 	cipher, have := cipherCache.Get(userID)
-	us := ss.GetUserStatistic(uint32(userID))
-	us.IncInBytes(n)
+	us := ss.GetUserStatisticService()
+	us.IncInBytes(uint32(userID), n)
 	if !have {
 		cipher, err = ss.NewCipher(config.Method, password)
 		if err != nil {
@@ -384,8 +386,10 @@ func main() {
 	var cmdConfig ss.Config
 	var printVer bool
 	var core int
+	var profileVer bool
 
 	flag.BoolVar(&printVer, "version", false, "print version")
+	flag.BoolVar(&profileVer, "P", false, "Enable profile, profile result file will stored to ./shadowsocks-server.prof")
 	flag.StringVar(&configFile, "c", "config.json", "specify config file")
 	flag.IntVar(&core, "core", 0, "maximum number of CPU cores to use, default is determinied by Go runtime")
 	flag.BoolVar((*bool)(&debug), "d", false, "print debug message")
@@ -395,6 +399,14 @@ func main() {
 	if printVer {
 		ss.PrintVersion()
 		os.Exit(0)
+	}
+
+	if profileVer {
+		pfp, err := os.Create("shadowsocks-server.prof")
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(pfp)
 	}
 
 	ss.SetDebug(debug)
@@ -455,9 +467,9 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	// for port, password := range config.PortPassword {
-	// 	go run(port, password, config.Auth)
-	// }
+	// Start User Statistic Service
+	ss.CreateUserStatisticService()
+
 	writeBucketCache, err := NewLRU(10000, nil)
 	if err != nil {
 		log.Printf("Error: Cannot create write bucket cache!")
@@ -474,5 +486,5 @@ func main() {
 	}
 	go StartStatisticServer("127.0.0.1:8080")
 
-	waitSignal()
+	waitSignal(profileVer)
 }

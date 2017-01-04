@@ -27,7 +27,6 @@ func PipeThenClose(src, dst net.Conn) {
 		if n > 0 {
 			// Note: avoid overwrite err returned by Read.
 			if _, err := dst.Write(buf[0:n]); err != nil {
-				Debug.Println("write:", err)
 				break
 			}
 		}

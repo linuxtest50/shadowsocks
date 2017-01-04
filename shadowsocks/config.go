@@ -117,7 +117,6 @@ func ParseConfig(path string) (config *Config, err error) {
 	}
 	if config.EnableDNSProxy {
 		_, err := net.ResolveUDPAddr("udp", config.TargetDNSServer)
-		fmt.Print(err)
 		if err != nil {
 			config.EnableDNSProxy = false
 		}
