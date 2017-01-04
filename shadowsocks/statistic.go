@@ -9,6 +9,7 @@ type UserStatistic struct {
 
 func init() {
 	userStatisticMap = make(map[uint32]*UserStatistic)
+	userStatisticService = nil
 }
 
 const (

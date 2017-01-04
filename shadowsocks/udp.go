@@ -170,7 +170,10 @@ func (c *UDPConn) WriteToUDP(b []byte, dst *net.UDPAddr, auth bool) (n int, err 
 	}
 	n, err = c.UDPConn.WriteToUDP(cipherData, dst)
 	if n > 0 {
-		c.GetUserStatisticService().IncOutBytes(c.UserID, n)
+		uss := c.GetUserStatisticService()
+		if uss != nil {
+			uss.IncOutBytes(c.UserID, n)
+		}
 		if c.WriteBucket != nil {
 			c.WriteBucket.WaitMaxDuration(int64(n), RateLimitWaitMaxDuration)
 		}
@@ -204,7 +207,10 @@ func (c *UDPConn) WriteWithUserID(b []byte, userID []byte) (n int, err error) {
 
 	n, err = c.UDPConn.Write(cipherData)
 	if n > 0 {
-		c.GetUserStatisticService().IncOutBytes(c.UserID, n)
+		uss := c.GetUserStatisticService()
+		if uss != nil {
+			uss.IncOutBytes(c.UserID, n)
+		}
 		if c.WriteBucket != nil {
 			c.WriteBucket.WaitMaxDuration(int64(n), RateLimitWaitMaxDuration)
 		}
