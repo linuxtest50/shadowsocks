@@ -82,6 +82,10 @@ func getRequest(conn *ss.Conn, auth bool) (host string, ota bool, err error) {
 	case typeDm:
 		host = string(buf[idDm0 : idDm0+buf[idDmLen]])
 	}
+	if CheckBlackList(host) {
+		err = fmt.Errorf("Host %s is in Black List", host)
+		return
+	}
 	// parse port
 	port := binary.BigEndian.Uint16(buf[reqEnd-2 : reqEnd])
 	host = net.JoinHostPort(host, strconv.Itoa(int(port)))
@@ -387,12 +391,14 @@ func main() {
 	var printVer bool
 	var core int
 	var profileVer bool
+	var blackListFile string
 
 	flag.BoolVar(&printVer, "version", false, "print version")
 	flag.BoolVar(&profileVer, "P", false, "Enable profile, profile result file will stored to ./shadowsocks-server.prof")
 	flag.StringVar(&configFile, "c", "config.json", "specify config file")
 	flag.IntVar(&core, "core", 0, "maximum number of CPU cores to use, default is determinied by Go runtime")
 	flag.BoolVar((*bool)(&debug), "d", false, "print debug message")
+	flag.StringVar(&blackListFile, "b", "", "specify black list file")
 
 	flag.Parse()
 
@@ -416,11 +422,18 @@ func main() {
 		cmdConfig.Auth = true
 	}
 
+	if blackListFile != "" {
+		err := LoadBlackList(blackListFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading %s: %v, Just ignore black list\n", blackListFile, err)
+		}
+	}
+
 	var err error
 	config, err = ss.ParseConfig(configFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", configFile, err)
+			fmt.Fprintf(os.Stderr, "Error reading %s: %v\n", configFile, err)
 			os.Exit(1)
 		}
 		config = &cmdConfig
