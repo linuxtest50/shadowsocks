@@ -13,21 +13,20 @@ func runTCPProxy(listenAddr string, remoteAddr string, userID int) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("starting local socks5 server at %v ...\n", listenAddr)
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
 			log.Println("accept:", err)
 			continue
 		}
+		if debug {
+			debug.Printf("TCP connection from %v\n", conn.RemoteAddr())
+		}
 		go handleTCPConnection(conn, userID, remoteAddr)
 	}
 }
 
 func handleTCPConnection(conn net.Conn, userID int, remoteAddr string) {
-	if debug {
-		debug.Printf("socks connect from %s\n", conn.RemoteAddr().String())
-	}
 	closed := false
 	defer func() {
 		if !closed {
@@ -50,7 +49,6 @@ func handleTCPConnection(conn net.Conn, userID int, remoteAddr string) {
 	go ss.PipeThenClose(conn, remote)
 	ss.PipeThenClose(remote, conn)
 	closed = true
-	debug.Println("closed connection to", remoteAddr)
 }
 
 func createServerConnWithUserID(remoteAddr string, userID int) (remote *ss.Conn, err error) {
@@ -112,7 +110,6 @@ func connectToServerWithUserID(serverId int, addr string, userID int) (remote *s
 		}
 		return nil, err
 	}
-	debug.Printf("connected to %s via %s\n", addr, se.server)
 	servers.failCnt[serverId] = 0
 	return
 }

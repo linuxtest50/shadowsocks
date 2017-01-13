@@ -25,13 +25,15 @@ func runUDPProxy(listenAddr string, remoteAddr string, userID int) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("Starting local Name Server at %s\n", uaddr)
 	for {
 		buf := ss.LeakyBuffer.Get()
 		n, src, err := conn.ReadFromUDP(buf)
 		if err != nil {
 			log.Printf("Read packet from UDP error: %v\n", err)
 			continue
+		}
+		if debug {
+			debug.Printf("UDP connection from %v\n", src)
 		}
 		go handleUDPPacket(conn, n, src, buf, userID, remoteAddr)
 	}
@@ -52,7 +54,6 @@ func dialUDPConnection(serverId int) (*ss.UDPConn, error) {
 		}
 		return nil, err
 	}
-	debug.Printf("connected to %s for UDP\n", srv.server)
 	servers.failCnt[serverId] = 0
 	ssremote := ss.NewUDPConn(remote, srv.cipher.Copy())
 	return ssremote, nil
