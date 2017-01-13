@@ -10,4 +10,7 @@ cmd/shadowsocks-server/shadowsocks-server.exe
 cmd/shadowsocks-server/shadowsocks-server.prof
 cmd/shadowsocks-server/shadowsocks-server
 cmd/shadowsocks-server/*.json
-
+cmd/shadowsocks-proxy/*.json
+cmd/shadowsocks-proxy/shadowsocks-proxy
+cmd/shadowsocks-proxy/shadowsocks-proxy.prof
+cmd/shadowsocks-proxy/shadowsocks-proxy.exe
