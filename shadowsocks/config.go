@@ -174,3 +174,12 @@ func UpdateConfig(old, new *Config) {
 		readTimeout = 60 * time.Second
 	}
 }
+
+func SetTimeout(timeout time.Duration) {
+	timeoutVar := 60 * time.Second
+	if timeout > 0 {
+		timeoutVar = timeout
+	}
+	readTimeout = timeoutVar
+	udpTimeout = timeoutVar
+}

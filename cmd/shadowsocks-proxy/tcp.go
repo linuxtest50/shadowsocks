@@ -49,6 +49,9 @@ func handleTCPConnection(conn net.Conn, userID int, remoteAddr string) {
 	go ss.PipeThenClose(conn, remote)
 	ss.PipeThenClose(remote, conn)
 	closed = true
+	if debug {
+		debug.Printf("Connection closed: %v -> %v", conn.RemoteAddr(), remoteAddr)
+	}
 }
 
 func createServerConnWithUserID(remoteAddr string, userID int) (remote *ss.Conn, err error) {
