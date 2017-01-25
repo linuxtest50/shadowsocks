@@ -8,7 +8,7 @@ import (
 	ss "github.com/shadowsocks/shadowsocks-go/shadowsocks"
 )
 
-func runTCPProxy(listenAddr string, remoteAddr string, userID int) {
+func runTCPProxy(listenAddr string, remoteAddr string, userID int, useKCP bool) {
 	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		log.Fatal(err)
@@ -22,18 +22,18 @@ func runTCPProxy(listenAddr string, remoteAddr string, userID int) {
 		if debug {
 			debug.Printf("TCP connection from %v\n", conn.RemoteAddr())
 		}
-		go handleTCPConnection(conn, userID, remoteAddr)
+		go handleTCPConnection(conn, userID, remoteAddr, useKCP)
 	}
 }
 
-func handleTCPConnection(conn net.Conn, userID int, remoteAddr string) {
+func handleTCPConnection(conn net.Conn, userID int, remoteAddr string, useKCP bool) {
 	closed := false
 	defer func() {
 		if !closed {
 			conn.Close()
 		}
 	}()
-	remote, err := createServerConnWithUserID(remoteAddr, userID)
+	remote, err := createServerConnWithUserID(remoteAddr, userID, useKCP)
 	if err != nil {
 		if len(servers.srvCipher) > 1 {
 			log.Println("Failed connect to all avaiable shadowsocks server")
@@ -54,7 +54,7 @@ func handleTCPConnection(conn net.Conn, userID int, remoteAddr string) {
 	}
 }
 
-func createServerConnWithUserID(remoteAddr string, userID int) (remote *ss.Conn, err error) {
+func createServerConnWithUserID(remoteAddr string, userID int, useKCP bool) (remote *ss.Conn, err error) {
 	const baseFailCnt = 20
 	n := len(servers.srvCipher)
 	skipped := make([]int, 0)
@@ -64,14 +64,14 @@ func createServerConnWithUserID(remoteAddr string, userID int) (remote *ss.Conn,
 			skipped = append(skipped, i)
 			continue
 		}
-		remote, err = connectToServerWithUserID(i, remoteAddr, userID)
+		remote, err = connectToServerWithUserID(i, remoteAddr, userID, useKCP)
 		if err == nil {
 			return
 		}
 	}
 	// last resort, try skipped servers, not likely to succeed
 	for _, i := range skipped {
-		remote, err = connectToServerWithUserID(i, remoteAddr, userID)
+		remote, err = connectToServerWithUserID(i, remoteAddr, userID, useKCP)
 		if err == nil {
 			return
 		}
@@ -101,10 +101,19 @@ func generateRawAddress(addr string) []byte {
 	return buf
 }
 
-func connectToServerWithUserID(serverId int, addr string, userID int) (remote *ss.Conn, err error) {
+func connectToServerWithUserID(serverId int, addr string, userID int, useKCP bool) (remote *ss.Conn, err error) {
 	rawaddr := generateRawAddress(addr)
 	se := servers.srvCipher[serverId]
-	remote, err = ss.DialWithRawAddrAndUserID(rawaddr, se.server, se.cipher.Copy(), ss.UserID2Byte(userID))
+	if useKCP {
+		kcpConn, kerr := DialKCPConn(se.server)
+		if kerr != nil {
+			err = kerr
+		} else {
+			remote, err = ss.InitConnWithRawAddrAndUserID(rawaddr, kcpConn, se.cipher.Copy(), ss.UserID2Byte(userID))
+		}
+	} else {
+		remote, err = ss.DialWithRawAddrAndUserID(rawaddr, se.server, se.cipher.Copy(), ss.UserID2Byte(userID))
+	}
 	if err != nil {
 		log.Println("error connecting to shadowsocks server:[TCP]", err)
 		const maxFailCnt = 30

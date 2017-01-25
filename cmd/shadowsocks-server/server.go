@@ -389,6 +389,7 @@ func main() {
 	var core int
 	var profileVer bool
 	var blackListFile string
+	var enableKcp bool
 
 	flag.BoolVar(&printVer, "version", false, "print version")
 	flag.BoolVar(&profileVer, "P", false, "Enable profile, profile result file will stored to ./shadowsocks-server.prof")
@@ -396,6 +397,7 @@ func main() {
 	flag.IntVar(&core, "core", 0, "maximum number of CPU cores to use, default is determinied by Go runtime")
 	flag.BoolVar((*bool)(&debug), "d", false, "print debug message")
 	flag.StringVar(&blackListFile, "b", "", "specify black list file")
+	flag.BoolVar(&enableKcp, "K", false, "Enable KCP tunnel for muss")
 
 	flag.Parse()
 
@@ -493,6 +495,9 @@ func main() {
 	for port, _ := range config.PortPassword {
 		go runTCPWithUserID(port, config.Auth, writeBucketCache, readBucketCache)
 		go runUDPWithUserID(port, config.Auth, writeBucketCache, readBucketCache)
+		if enableKcp {
+			go runKCPTunnel(port)
+		}
 	}
 	go StartStatisticServer("127.0.0.1:8080")
 

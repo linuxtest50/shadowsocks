@@ -132,10 +132,12 @@ func main() {
 	log.SetOutput(os.Stdout)
 	var configFile string
 	var printVer bool
+	var useKCP bool
 
 	flag.BoolVar(&printVer, "version", false, "print version")
 	flag.StringVar(&configFile, "c", "config.json", "specify config file")
 	flag.BoolVar((*bool)(&debug), "d", false, "print debug message")
+	flag.BoolVar(&useKCP, "K", false, "use KCP for TCP connections")
 
 	flag.Parse()
 
@@ -172,7 +174,7 @@ func main() {
 		listenAddr := proxyInfo.LocalAddr
 		remoteAddr := proxyInfo.RemoteAddr
 		if proxyInfo.EnableTCP {
-			go runTCPProxy(listenAddr, remoteAddr, config.UserID)
+			go runTCPProxy(listenAddr, remoteAddr, config.UserID, useKCP)
 			log.Printf("Start TCP Proxy: %s to %s\n", listenAddr, remoteAddr)
 		}
 		if proxyInfo.EnableUDP {

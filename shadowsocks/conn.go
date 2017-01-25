@@ -68,6 +68,10 @@ func DialWithRawAddrAndUserID(rawaddr []byte, server string, cipher *Cipher, use
 	if err != nil {
 		return
 	}
+	return InitConnWithRawAddrAndUserID(rawaddr, conn, cipher, userID)
+}
+
+func InitConnWithRawAddrAndUserID(rawaddr []byte, conn net.Conn, cipher *Cipher, userID []byte) (c *Conn, err error) {
 	c = NewConn(conn, cipher)
 	if cipher.ota {
 		if c.enc == nil {
