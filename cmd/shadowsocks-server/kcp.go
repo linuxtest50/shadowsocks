@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	DataShard        int  = 10
+	DataShard        int  = 12
 	ParityShard      int  = 3
 	SocketBufferSize int  = 4194304
 	NoDelay          int  = 0

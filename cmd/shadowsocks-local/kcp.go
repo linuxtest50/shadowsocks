@@ -6,19 +6,20 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 
 	kcp "github.com/xtaci/kcp-go"
 	"github.com/xtaci/smux"
 )
 
 const (
-	DataShard        int  = 10
+	DataShard        int  = 12
 	ParityShard      int  = 3
 	SocketBufferSize int  = 4194304
 	NoDelay          int  = 0
-	Interval         int  = 20
-	Resend           int  = 2
-	NoCongestion     int  = 1
+	Interval         int  = 120
+	Resend           int  = 0
+	NoCongestion     int  = 0
 	KCPMtu           int  = 1350
 	SendWindow       int  = 1024
 	RecvWindow       int  = 1024
@@ -33,6 +34,8 @@ var KCPSessionLock sync.RWMutex
 func init() {
 	smuxConfig = smux.DefaultConfig()
 	smuxConfig.MaxReceiveBuffer = SocketBufferSize
+	smuxConfig.KeepAliveInterval = 2 * time.Second
+	smuxConfig.KeepAliveTimeout = 4 * time.Second
 	KCPSessionCache = make(map[string]*smux.Session)
 }
 
@@ -89,7 +92,7 @@ func DialKCPConn(remoteAddr string) (net.Conn, error) {
 	KCPSessionLock.RLock()
 	sess, have := KCPSessionCache[remoteAddr]
 	KCPSessionLock.RUnlock()
-	if !have {
+	if !have || sess.IsClosed() {
 		KCPSessionLock.Lock()
 		newSess, err := CreateKCPSession(remoteAddr)
 		if err != nil {
