@@ -18,7 +18,7 @@ const (
 	ParityShard      int  = 3
 	SocketBufferSize int  = 4194304
 	NoDelay          int  = 0
-	Interval         int  = 120
+	Interval         int  = 200
 	Resend           int  = 0
 	NoCongestion     int  = 0
 	KCPMtu           int  = 1350
@@ -68,6 +68,15 @@ func initKCPStream(conn *kcp.UDPSession) {
 	conn.SetWindowSize(SendWindow, RecvWindow)
 	conn.SetACKNoDelay(AckNoDelay)
 	conn.SetKeepAlive(KeepAlive)
+}
+
+/*
+ * bandwidth unit is Mbps
+ */
+func UpdateKCPStreamWithBandwidth(conn *kcp.UDPSession, bandwidth int) {
+	// wnd = bandwidth * interval / (mtu * 8)
+	windowSize := (bandwidth * 1000 * 1000) * Interval / (KCPMtu * 8)
+	conn.SetWindowSize(windowSize, windowSize)
 }
 
 func handleMux(conn io.ReadWriteCloser, localAddr string) {
