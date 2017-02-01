@@ -499,6 +499,9 @@ func main() {
 			go runKCPTunnel(port)
 		}
 	}
+	if debug {
+		go reportKCPStatus()
+	}
 	go StartStatisticServer("127.0.0.1:8080")
 
 	waitSignal(profileVer)

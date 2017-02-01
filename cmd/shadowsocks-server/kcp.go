@@ -157,3 +157,17 @@ func runKCPTunnel(port string) {
 		go handleMux(conn, localAddr)
 	}
 }
+
+func reportKCPStatus() {
+	for {
+		time.Sleep(2 * time.Second)
+		log.Printf("[KCP] Status:\n")
+		status := kcp.DefaultSnmp
+		keys := status.Header()
+		values := status.ToSlice()
+		for i := 0; i < len(keys); i++ {
+			log.Printf("[KCP]     %s: %s\n", keys[i], values[i])
+		}
+		log.Printf("[KCP] Status Finish\n")
+	}
+}
