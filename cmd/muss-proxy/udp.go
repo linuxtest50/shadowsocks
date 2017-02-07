@@ -7,7 +7,7 @@ import (
 	"net"
 	"os"
 
-	ss "github.com/shadowsocks/shadowsocks-go/shadowsocks"
+	ss "github.com/muss/muss-go/shadowsocks"
 )
 
 const (
