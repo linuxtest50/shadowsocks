@@ -18,8 +18,8 @@ const (
 	ParityShard      int  = 3
 	SocketBufferSize int  = 4194304
 	NoDelay          int  = 0
-	Interval         int  = 200
-	Resend           int  = 3
+	Interval         int  = 30
+	Resend           int  = 5
 	NoCongestion     int  = 0
 	KCPMtu           int  = 1350
 	SendWindow       int  = 1024
