@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	kcp "github.com/xtaci/kcp-go"
-	"github.com/xtaci/smux"
+	kcp "github.com/muss/kcp-go"
+	"github.com/muss/smux"
 )
 
 const (
@@ -24,7 +24,7 @@ const (
 	SendWindow       int  = 1024
 	RecvWindow       int  = 1024
 	AckNoDelay       bool = true
-	KeepAlive        int  = 10
+	KeepAlive        int  = 0
 )
 
 var smuxConfig *smux.Config

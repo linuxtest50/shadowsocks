@@ -3,14 +3,14 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/xtaci/smux"
 	"io"
 	"log"
 	"net"
 	"strconv"
 	"time"
 
-	kcp "github.com/xtaci/kcp-go"
+	kcp "github.com/muss/kcp-go"
+	"github.com/muss/smux"
 )
 
 const (
@@ -25,7 +25,7 @@ const (
 	SendWindow       int  = 1024
 	RecvWindow       int  = 1024
 	AckNoDelay       bool = true
-	KeepAlive        int  = 10
+	KeepAlive        int  = 0
 )
 
 func getKCPPort(port string) (int, int, error) {
@@ -82,6 +82,8 @@ func UpdateKCPStreamWithBandwidth(conn *kcp.UDPSession, bandwidth int) {
 func handleMux(conn io.ReadWriteCloser, localAddr string) {
 	smuxConfig := smux.DefaultConfig()
 	smuxConfig.MaxReceiveBuffer = SocketBufferSize
+	smuxConfig.KeepAliveInterval = 2 * time.Second
+	smuxConfig.KeepAliveTimeout = 4 * time.Second
 	mux, err := smux.Server(conn, smuxConfig)
 	if err != nil {
 		log.Printf("[KCP] %v", err)
