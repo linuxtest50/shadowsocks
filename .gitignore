@@ -14,3 +14,6 @@ cmd/shadowsocks-proxy/*.json
 cmd/shadowsocks-proxy/shadowsocks-proxy
 cmd/shadowsocks-proxy/shadowsocks-proxy.prof
 cmd/shadowsocks-proxy/shadowsocks-proxy.exe
+cmd/shadowsocks-httpget/shadowsocks-httpget
+cmd/shadowsocks-httpget/shadowsocks-httpget.prof
+cmd/shadowsocks-httpget/shadowsocks-httpget.exe

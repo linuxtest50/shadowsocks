@@ -10,8 +10,8 @@ import (
 )
 
 func PrintVersion() {
-	const version = "1.1.5"
-	fmt.Println("shadowsocks-go version", version)
+	const version = "1.0.0"
+	fmt.Println("muss-go version", version)
 }
 
 func IsFileExists(path string) (bool, error) {

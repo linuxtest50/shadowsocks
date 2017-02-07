@@ -10,7 +10,7 @@ import (
 	"path"
 	"syscall"
 
-	ss "github.com/shadowsocks/shadowsocks-go/shadowsocks"
+	ss "github.com/muss/muss-go/shadowsocks"
 )
 
 var debug ss.DebugLog

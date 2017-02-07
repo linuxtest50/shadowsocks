@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	ss "github.com/shadowsocks/shadowsocks-go/shadowsocks"
+	ss "github.com/muss/muss-go/shadowsocks"
 )
 
 func processStatisticRequest(writer http.ResponseWriter, request *http.Request) {
