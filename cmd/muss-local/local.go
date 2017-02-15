@@ -440,6 +440,7 @@ func main() {
 	flag.StringVar(&configFile, "c", "config.json", "specify config file")
 	flag.BoolVar((*bool)(&debug), "d", false, "print debug message")
 	flag.BoolVar(&useKCP, "K", false, "use KCP for TCP connection")
+	flag.StringVar(&cmdLocal, "l", "127.0.0.1", "Listen address default is 127.0.0.1")
 
 	flag.Parse()
 
