@@ -23,7 +23,7 @@ const (
 	KCPMtu           int  = 1350
 	SendWindow       int  = 1024
 	RecvWindow       int  = 1024
-	AckNoDelay       bool = true
+	AckNoDelay       bool = false
 	KeepAlive        int  = 0
 )
 
