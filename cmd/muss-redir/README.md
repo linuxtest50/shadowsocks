@@ -29,6 +29,21 @@ iptables -t nat -A OUTPUT -p tcp -j MUSS
 
 # 重定向其他机器的 TCP 请求到 muss-redir，改规则用于网关服务，请自行修改 10.0.0.0/8 为内网 IP 段
 iptables -t nat -A PREROUTING -s 10.0.0.0/8 -p tcp -j MUSS
+
+# 网关模式
+iptables -t nat -I POSTROUTING -o eth0 -j MASQUERADE
+```
+
+## sysctl.conf 配置
+
+```
+net.ipv4.ip_forward = 1
+```
+
+修改之后执行
+
+```
+# sysctl -p
 ```
 
 ## muss-redir 配置: /etc/muss/config.json
