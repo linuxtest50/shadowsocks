@@ -83,7 +83,7 @@ nameserver 8.8.8.8
 ## 设想可用组网架构
 
 ```
-  10.0.0.2                   10.0.0.1       x.x.x.x          GFW
+  10.0.0.2                   10.0.0.1       x.x.x.x           GFW
  +--------+                 +-----------------------+          +         y.y.y.y
  | Client | <-- Private --> |     Gateway Server    |          +         +-------------+             +--------+
  +--------+     Network     | muss-redir + iptables | <-- muss + TCP --> | muss-server | <-- TCP --> | Server |
