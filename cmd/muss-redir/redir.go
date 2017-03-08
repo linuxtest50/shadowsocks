@@ -273,7 +273,7 @@ func parseServerConfig(config *ss.Config) {
 func main() {
 	log.SetOutput(os.Stdout)
 
-	var configFile, cmdServer, cmdLocal string
+	var configFile, cmdServer, cmdLocal, udpLocal string
 	var cmdConfig ss.Config
 	var printVer bool
 	var useKCP bool
@@ -283,6 +283,7 @@ func main() {
 	flag.BoolVar((*bool)(&debug), "d", false, "print debug message")
 	flag.BoolVar(&useKCP, "K", false, "use KCP for TCP connection")
 	flag.StringVar(&cmdLocal, "l", "127.0.0.1", "Listen address default is 127.0.0.1")
+	flag.StringVar(&udpLocal, "L", "127.0.0.1", "UDP listen address default is 127.0.0.1")
 
 	flag.Parse()
 
@@ -335,7 +336,7 @@ func main() {
 	if config.EnableDNSProxy {
 		TargetNameServer = config.TargetDNSServer
 		dnsProxyPort := config.DNSProxyPort
-		go runNameServer(fmt.Sprintf("%s:%d", cmdLocal, dnsProxyPort), config.UserID)
+		go runNameServer(fmt.Sprintf("%s:%d", udpLocal, dnsProxyPort), config.UserID)
 	}
 	//if debug {
 	//	go reportKCPStatus()
