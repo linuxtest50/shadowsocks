@@ -1,0 +1,12 @@
+{
+    "auth": true,
+    "local_port": 7070,
+    "server_password": [
+        [
+            "103.242.65.93:8387",
+            "d7f64933b86e0e59b7485379de6e21ce",
+            "aes-128-cfb-auth"
+        ]
+    ],
+    "user_id": 23296
+}
