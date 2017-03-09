@@ -3,6 +3,7 @@ package shadowsocks
 import (
 	"bytes"
 	"errors"
+	"log"
 	"net"
 )
 
@@ -147,6 +148,14 @@ func (c *UDPConn) WriteTo(b []byte, dst net.Addr) (n int, err error) {
 }
 
 func (c *UDPConn) WriteToUDP(b []byte, dst *net.UDPAddr, auth bool) (n int, err error) {
+	// At here we add panic recover to prevent encrypt bug.
+	// If we got panic here, just ignore this UDP package send.
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println(err)
+		}
+	}()
+
 	var iv []byte
 	iv, err = c.initEncrypt()
 	if err != nil {
