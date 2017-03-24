@@ -85,7 +85,7 @@ net.ipv4.ip_forward = 1
     "user_id": [USER_ID],
     "enable_dns_proxy": true,
     "target_dns_server": "8.8.8.8:53",
-    "dns_proxy_port": 53
+    "dns_proxy_port": 5353
 }
 ```
 
@@ -102,6 +102,41 @@ nameserver 8.8.8.8
 ```
 # ./muss-redir -c /etc/muss/config.json -l 0.0.0.0 -L 0.0.0.0
 ```
+
+## DHCP 与 DNS
+
+可以通过 dnsmasq + ChinaDNS 来提供 DHCP 和域名解析服务。dnsmasq 可以通过 yum 或者 apt-get 进行安装。ChinaDNS 可以通过`https://github.com/shadowsocks/ChinaDNS`获取。
+
+dnsmasq 配置文件（/etc/dnsmasq.conf），假设本机 IP 地址为 172.16.10.100
+
+```
+# DNS 监听到5354，避免占用53端口
+port=5354
+# DHCP 监听的网卡端口
+interface=eth0
+# DHCP 监听的IP地址
+listen-address=172.16.10.100
+# DHCP 自动分配的地址段区间和租期
+dhcp-range=172.16.10.101,172.16.10.200,48h
+# DHCP 提供的网关地址
+dhcp-option=option:router,172.16.10.100
+# DHCP 提供的 DNS 地址
+dhcp-option=option:dns-server,172.16.10.100
+```
+
+dnsmasq 启动命令
+
+```
+# dnsmasq -C /etc/dnsmasq.conf
+```
+
+ChinaDNS 可以用来区分国内外 DNS 解析结果，提高或内网站的 DNS 解析效果。
+
+```
+# chinadns -c /etc/muss/chnroute.txt -s 114.114.114.114,127.0.0.1:5353
+```
+
+其中`114.114.114.114`为国内 DNS，`127.0.0.1:5353`为 muss-redir 提供的`8.8.8.8`的代理。使用 ChinaDNS 之后，可以解决国内网站解析到国外 IP 地址的问题。
 
 ## 设想可用组网架构
 
