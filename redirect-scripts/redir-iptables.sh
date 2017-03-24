@@ -1,7 +1,23 @@
 #!/bin/bash
 PUB_ETH=eth0
-CHNROUTE_CONFIG=/etc/muss/chnroute.txt
-CHNROUTE_PATCH=/etc/muss/chnroute.patch
+CONFIG_PATH=/etc/muss
+CHNROUTE_CONFIG=${CONFIG_PATH}/chnroute.txt
+CHNROUTE_PATCH=${CONFIG_PATH}/chnroute.patch
+
+install_chnroute() {
+    if [ ! -d $CONFIG_PATH ]; then
+        mkdir -p $CONFIG_PATH
+    fi
+    basedir=`dirname $0`
+    if [ -h $0 ]; then
+        link_abs_path=`readlink $0`
+        basedir=`dirname $link_abs_path`
+    fi
+    cp ${basedir}/chnroute.txt $CONFIG_PATH
+    if [ -f ${basedir}/chnroute.patch ]; then
+        cp ${basedir}/chnroute.patch $CONFIG_PATH
+    fi
+}
 
 reload_ipset() {
     ipset flush chnroute
@@ -53,6 +69,9 @@ setup_iptables() {
 }
 
 case $1 in
+    install):
+        install_chnroute
+        ;;
     setup):
         setup_ipset
         setup_iptables
@@ -66,6 +85,6 @@ case $1 in
         setup_gateway_mode
         ;;
     *):
-        echo "redir-iptables.sh (setup|reload-ipset|reload-iptables)"
+        echo "redir-iptables.sh (install|setup|reload-ipset|reload-iptables)"
         ;;
 esac

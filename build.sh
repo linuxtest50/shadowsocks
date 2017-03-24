@@ -7,6 +7,15 @@ OSES=(linux darwin windows)
 ARCHS=(amd64)
 MODULES=(muss-server muss-local muss-proxy)
 
+build_redirect() {
+    if [ ! -d ${BUILD_BASE}/redirect ]; then
+        mkdir -p ${BUILD_BASE}/redirect
+    fi
+    cp ${BASE_DIR}/redirect-scripts/* ${BUILD_BASE}/redirect/
+    cp ${BUILD_BASE}/linux-amd64/muss-redir ${BUILD_BASE}/redirect/
+    cd ${BUILD_BASE}; tar zcf redirect.tar.gz redirect
+}
+
 build_target() {
     name=$1
     os=$2
@@ -43,11 +52,14 @@ case $1 in
     build)
         build_releases
         ;;
+    build-redirect)
+        build_redirect
+        ;;
     clean)
         clean_build
         ;;
     help)
-        echo "build.sh (build|clean|help)"
+        echo "build.sh (build|build_redirect|clean|help)"
         ;;
     *)
         build_releases
