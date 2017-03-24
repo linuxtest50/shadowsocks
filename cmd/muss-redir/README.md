@@ -2,11 +2,30 @@
 
 muss-redir 为支持 iptables redirect 功能的代理程序，可以通过设置 iptables 的 redirect 代理所有流量到 muss。
 
+## ipset 配置
+
+获取国内 IP 地址段
+
+```
+curl 'http://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest' | grep ipv4 | grep CN | awk -F\| '{ printf("%s/%d\n", $4, 32-log($5)/log(2)) }' > chnroute.txt
+```
+
+创建 chnroute 表并初始化
+
+```
+ipset destroy chnroute
+ipset create chnroute hash:net maxelem 65536
+for cidr in `cat chnroute.txt`; do
+    ipset add chnroute cidr
+done
+```
+
 ## iptables 配置
 
 filter 表配置
 
 ```
+# 用来禁止外网访问 muss-redir 如果是内网可以忽略
 iptables -A INPUT -i eth0 -p tcp --dport 7070 -j DROP
 ```
 
@@ -14,21 +33,25 @@ nat 表配置
 
 ```
 iptables -t nat -N MUSS
-iptables -t nat -A MUSS -d [MUSS-SERVER_IP] -j RETURN
-iptables -t nat -A MUSS -d 0.0.0.0/8 -j RETURN
-iptables -t nat -A MUSS -d 10.0.0.0/8 -j RETURN
-iptables -t nat -A MUSS -d 127.0.0.0/8 -j RETURN
-iptables -t nat -A MUSS -d 169.254.0.0/16 -j RETURN
-iptables -t nat -A MUSS -d 192.168.0.0/16 -j RETURN
+# muss-server 端口
+iptables -t nat -A MUSS -p tcp --dport 8387 -j RETURN
+# 基本内网地址段
 iptables -t nat -A MUSS -d 224.0.0.0/4 -j RETURN
 iptables -t nat -A MUSS -d 240.0.0.0/4 -j RETURN
+iptables -t nat -A MUSS -d 10.0.0.0/8 -j RETURN
+iptables -t nat -A MUSS -d 127.0.0.0/8 -j RETURN
+iptables -t nat -A MUSS -d 172.16.0.0/16 -j RETURN
+iptables -t nat -A MUSS -d 169.254.0.0/16 -j RETURN
+iptables -t nat -A MUSS -d 192.168.0.0/16 -j RETURN
+# 国内地址段
+iptables -t nat -A MUSS -p tcp -m set --match-set chnroute dst -j RETURN
 iptables -t nat -A MUSS -p tcp -j REDIRECT --to-ports 7070
 
 # 重定向本机的 TCP 请求到 muss-redir
 iptables -t nat -A OUTPUT -p tcp -j MUSS
 
-# 重定向其他机器的 TCP 请求到 muss-redir，改规则用于网关服务，请自行修改 10.0.0.0/8 为内网 IP 段
-iptables -t nat -A PREROUTING -s 10.0.0.0/8 -p tcp -j MUSS
+# 重定向其他机器的 TCP 请求到 muss-redir，改规则用于网关服务
+iptables -t nat -A PREROUTING -p tcp -j MUSS
 
 # 网关模式
 iptables -t nat -I POSTROUTING -o eth0 -j MASQUERADE
