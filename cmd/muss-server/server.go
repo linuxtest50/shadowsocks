@@ -246,6 +246,13 @@ func runTCPWithUserID(port string, auth bool, writeBucketCache, readBucketCache 
 }
 
 func handleReadFromUDP(conn *net.UDPConn, auth bool, n int, src *net.UDPAddr, data []byte, cipherCache, writeBucketCache, readBucketCache *LRU) {
+	// At here we add panic recover to prevent encrypt bug.
+	// If we got panic here, just ignore this UDP package send.
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println(err)
+		}
+	}()
 	defer ss.LeakyBuffer.Put(data)
 	lcfg := GetLicenseLimit()
 	if lcfg.IsExpired() {
