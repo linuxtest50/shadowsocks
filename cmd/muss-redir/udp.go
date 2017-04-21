@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"time"
 
 	ss "github.com/muss/muss-go/shadowsocks"
 )
@@ -113,6 +114,7 @@ func handleUDPPacket(conn *net.UDPConn, n int, src *net.UDPAddr, buf []byte, use
 	}
 	remote.WriteWithUserID(data, ss.UserID2Byte(userID))
 	retBuf := make([]byte, 4096)
+	remote.SetReadDeadline(time.Now().Add(60 * time.Second))
 	rn, err := remote.Read(retBuf)
 	if err != nil {
 		log.Println("Got error when receive data:[UDP]", err)
@@ -120,4 +122,5 @@ func handleUDPPacket(conn *net.UDPConn, n int, src *net.UDPAddr, buf []byte, use
 	}
 	retData := ParseSSUDPResponse(retBuf, rn)
 	conn.WriteToUDP(retData, src)
+	debug.Println("Close UDP Connection:", remote.LocalAddr(), "<->", remote.RemoteAddr())
 }
