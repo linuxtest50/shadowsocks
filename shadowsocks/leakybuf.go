@@ -36,7 +36,8 @@ func (lb *LeakyBuf) Get() (b []byte) {
 // error usage of leaky buffer.
 func (lb *LeakyBuf) Put(b []byte) {
 	if len(b) != lb.bufSize {
-		panic("invalid buffer size that's put into leaky buffer")
+		// If returned buffer length is not correct just ignore it
+		return
 	}
 	select {
 	case lb.freeList <- b:

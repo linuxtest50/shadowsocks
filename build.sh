@@ -5,7 +5,7 @@ LDFLAGS="-s -w"
 
 OSES=(linux darwin windows)
 ARCHS=(amd64)
-MODULES=(muss-server muss-local muss-proxy, muss-smartdns)
+MODULES=(muss-server muss-local muss-proxy muss-smartdns)
 
 build_redirect() {
     if [ ! -d ${BUILD_BASE}/redirect ]; then
