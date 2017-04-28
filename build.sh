@@ -5,7 +5,7 @@ LDFLAGS="-s -w"
 
 OSES=(linux darwin windows)
 ARCHS=(amd64)
-MODULES=(muss-server muss-local muss-proxy)
+MODULES=(muss-server muss-local muss-proxy, muss-smartdns)
 
 build_redirect() {
     if [ ! -d ${BUILD_BASE}/redirect ]; then
@@ -13,6 +13,7 @@ build_redirect() {
     fi
     cp ${BASE_DIR}/redirect-scripts/* ${BUILD_BASE}/redirect/
     cp ${BUILD_BASE}/linux-amd64/muss-redir ${BUILD_BASE}/redirect/
+    cp ${BUILD_BASE}/linux-amd64/muss-smartdns ${BUILD_BASE}/redirect/
     cd ${BUILD_BASE}; tar zcf redirect.tar.gz redirect
 }
 
