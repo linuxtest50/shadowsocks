@@ -123,4 +123,5 @@ func handleUDPPacket(conn *net.UDPConn, n int, src *net.UDPAddr, buf []byte, use
 	retData := ParseSSUDPResponse(retBuf, rn)
 	conn.WriteToUDP(retData, src)
 	debug.Println("Close UDP Connection:", remote.LocalAddr(), "<->", remote.RemoteAddr())
+	ss.LeakyBufer.Put(buf)
 }
