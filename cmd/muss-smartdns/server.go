@@ -69,6 +69,14 @@ func (s *SmartDNSServer) SendPacketTo(target string, buf []byte) (int, []byte, e
 }
 
 func (s *SmartDNSServer) HandleUDPPacket(n int, src *net.UDPAddr, buf []byte) {
+	// We catch panic on this goroutine to prevent system crash on one query
+	// got some error.
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println(err)
+		}
+	}()
+
 	msg, err := s.Selector.UnpackBuffer(buf)
 	if err != nil {
 		log.Printf("Not a DNS query message")

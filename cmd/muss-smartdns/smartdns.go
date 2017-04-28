@@ -24,17 +24,19 @@ func main() {
 	flag.StringVar(&localDNS, "l", "114.114.114.114", "DNS in China")
 	flag.StringVar(&remoteDNS, "r", "8.8.8.8", "DNS out of China")
 	flag.IntVar(&timeout, "t", 500, "Read timeout in ms")
-
 	flag.Parse()
+
 	if showVersion {
 		fmt.Printf("muss-smartdns version %s\n", VERSION)
 		os.Exit(0)
 	}
+
 	ipset, err := NewHashIPSet(routeFile)
 	if err != nil {
 		fmt.Printf("Cannot Load China route file: %v\n", err)
 		os.Exit(1)
 	}
+
 	server := &SmartDNSServer{
 		Address:     bindAddr,
 		Port:        port,
