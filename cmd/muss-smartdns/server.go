@@ -20,6 +20,12 @@ type SmartDNSServer struct {
 	ReadTimeout time.Duration
 }
 
+type DNSResult struct {
+	Size   int
+	Buffer []byte
+	Error  error
+}
+
 func (s *SmartDNSServer) Run() {
 	s.Selector = NewDNSResultSelector(s.LocalDNS, s.RemoteDNS, s.IPSet)
 	udpAddr := fmt.Sprintf("%s:%d", s.Address, s.Port)
@@ -44,28 +50,44 @@ func (s *SmartDNSServer) Run() {
 	}
 }
 
-func (s *SmartDNSServer) SendPacketTo(target string, buf []byte) (int, []byte, error) {
+func (s *SmartDNSServer) SendPacketTo(target string, buf []byte, reschan chan *DNSResult) {
 	var dnstarget = target
+	result := DNSResult{Size: 0, Buffer: nil, Error: nil}
 	if !strings.Contains(target, ":") {
 		dnstarget += ":53"
 	}
 	remoteAddr, err := net.ResolveUDPAddr("udp", dnstarget)
 	if err != nil {
-		return 0, nil, err
+		result.Error = err
+		reschan <- &result
+		return
 	}
 	remote, err := net.DialUDP("udp", nil, remoteAddr)
 	if err != nil {
-		return 0, nil, err
+		result.Error = err
+		reschan <- &result
+		return
 	}
 	defer remote.Close()
 	_, err = remote.Write(buf)
 	if err != nil {
-		return 0, nil, err
+		result.Error = err
+		reschan <- &result
+		return
 	}
 	remote.SetReadDeadline(time.Now().Add(s.ReadTimeout))
 	retBuf := make([]byte, 4096)
 	rn, _, err := remote.ReadFromUDP(retBuf)
-	return rn, retBuf[0:rn], err
+	if err != nil {
+		result.Error = err
+		reschan <- &result
+		return
+	}
+	result.Size = rn
+	result.Buffer = retBuf[0:rn]
+	result.Error = err
+	reschan <- &result
+	return
 }
 
 func (s *SmartDNSServer) HandleUDPPacket(n int, src *net.UDPAddr, buf []byte) {
@@ -83,25 +105,30 @@ func (s *SmartDNSServer) HandleUDPPacket(n int, src *net.UDPAddr, buf []byte) {
 		return
 	}
 	qdetail := s.Selector.GetQueryDetails(msg)
+	lrchan := make(chan *DNSResult)
+	rrchan := make(chan *DNSResult)
 	// Query A or AAAA, use Selector to choose best result
-	nl, localResult, err := s.SendPacketTo(s.LocalDNS, buf)
-	if err != nil {
-		log.Printf("Got error from Local DNS: %v\n", err)
+	go s.SendPacketTo(s.LocalDNS, buf, lrchan)
+	go s.SendPacketTo(s.RemoteDNS, buf, rrchan)
+	var lrres, rrres *DNSResult
+	lrres = <-lrchan
+	rrres = <-rrchan
+	if lrres.Error != nil {
+		log.Printf("Got error from Local DNS: %v\n", lrres.Error)
 	}
-	nr, remoteResult, err := s.SendPacketTo(s.RemoteDNS, buf)
-	if err != nil {
-		log.Printf("Got error from Remote DNS: %v\n", err)
+	if rrres.Error != nil {
+		log.Printf("Got error from Remote DNS: %v\n", rrres.Error)
 	}
 	var result []byte
-	if nl > 0 && nr > 0 && s.Selector.IsQueryA(msg) {
-		result = s.ChooseResult(localResult, remoteResult, qdetail)
+	if lrres.Size > 0 && rrres.Size > 0 && s.Selector.IsQueryA(msg) {
+		result = s.ChooseResult(lrres.Buffer, rrres.Buffer, qdetail)
 	} else {
-		if nl > 0 {
+		if lrres.Size > 0 {
 			log.Printf("[LSRE] Query %s Select local answer on %s\n", qdetail, s.LocalDNS)
-			result = localResult
-		} else if nr > 0 {
+			result = lrres.Buffer
+		} else if rrres.Size > 0 {
 			log.Printf("[LERS] Query %s Select remote answer on %s\n", qdetail, s.RemoteDNS)
-			result = remoteResult
+			result = rrres.Buffer
 		} else {
 			log.Printf("[LERE] Query %s Cannot resolve!\n", qdetail)
 			result = nil
