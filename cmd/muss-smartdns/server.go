@@ -75,8 +75,8 @@ func (s *SmartDNSServer) SendPacketTo(target string, buf []byte, reschan chan *D
 		reschan <- &result
 		return
 	}
-	remote.SetReadDeadline(time.Now().Add(s.ReadTimeout))
 	retBuf := make([]byte, 4096)
+	remote.SetReadDeadline(time.Now().Add(s.ReadTimeout))
 	rn, _, err := remote.ReadFromUDP(retBuf)
 	if err != nil {
 		result.Error = err
