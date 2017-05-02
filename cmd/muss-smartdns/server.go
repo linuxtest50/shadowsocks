@@ -121,24 +121,20 @@ func (s *SmartDNSServer) HandleUDPPacket(n int, src *net.UDPAddr, buf []byte) {
 	}
 	var result []byte
 	if lrres.Size > 0 && rrres.Size > 0 && s.Selector.IsQueryA(msg) {
-		result = s.ChooseResult(lrres.Buffer, rrres.Buffer, qdetail)
+		result = s.Selector.SelectResult(lrres.Buffer, rrres.Buffer, qdetail, src)
 	} else {
 		if lrres.Size > 0 {
-			log.Printf("[LSRE] Query %s Select local answer on %s\n", qdetail, s.LocalDNS)
+			log.Printf("[LSRE] %v Query %s Select local answer on %s\n", src, qdetail, s.LocalDNS)
 			result = lrres.Buffer
 		} else if rrres.Size > 0 {
-			log.Printf("[LERS] Query %s Select remote answer on %s\n", qdetail, s.RemoteDNS)
+			log.Printf("[LERS] %v Query %s Select remote answer on %s\n", src, qdetail, s.RemoteDNS)
 			result = rrres.Buffer
 		} else {
-			log.Printf("[LERE] Query %s Cannot resolve!\n", qdetail)
+			log.Printf("[LERE] %v Query %s Cannot resolve!\n", src, qdetail)
 			result = nil
 		}
 	}
 	if result != nil {
 		s.Conn.WriteToUDP(result, src)
 	}
-}
-
-func (s *SmartDNSServer) ChooseResult(localResult []byte, remoteResult []byte, qdetail string) []byte {
-	return s.Selector.SelectResult(localResult, remoteResult, qdetail)
 }

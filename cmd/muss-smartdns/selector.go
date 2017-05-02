@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
 	"strings"
 
 	"github.com/miekg/dns"
@@ -22,7 +23,7 @@ func NewDNSResultSelector(local string, remote string, ipset *HashIPSet) *DNSRes
 	}
 }
 
-func (s *DNSResultSelector) SelectResult(local []byte, remote []byte, qdetail string) []byte {
+func (s *DNSResultSelector) SelectResult(local []byte, remote []byte, qdetail string, src *net.UDPAddr) []byte {
 	lmsg := new(dns.Msg)
 	lerr := lmsg.Unpack(local)
 	rmsg := new(dns.Msg)
@@ -44,23 +45,23 @@ func (s *DNSResultSelector) SelectResult(local []byte, remote []byte, qdetail st
 
 	// Local return China IP, remote return not China IP, use remote
 	if linipset && !rinipset {
-		log.Printf("[LCRR] Query %s Select remote answer on %s", qdetail, s.RemoteDNS)
+		log.Printf("[LCRR] %v Query %s Select remote answer on %s", src, qdetail, s.RemoteDNS)
 		return remote
 	}
 	// Local return not China IP, remote return not China IP, use remote
 	if !linipset && !rinipset {
-		log.Printf("[LRRR] Query %s Select remote answer on %s", qdetail, s.RemoteDNS)
+		log.Printf("[LRRR] %v Query %s Select remote answer on %s", src, qdetail, s.RemoteDNS)
 		return remote
 	}
 	// Local return China IP, remote return China IP, use local
 	if linipset && rinipset {
-		log.Printf("[LCRC] Query %s Select local answer on %s", qdetail, s.LocalDNS)
+		log.Printf("[LCRC] %v Query %s Select local answer on %s", src, qdetail, s.LocalDNS)
 		return local
 	}
 	// Local return not ChinaIP, remote return China IP, use local
 	// I don't think we can touch this condition.
 	if !linipset && rinipset {
-		log.Printf("[LRRC] Query %s Select local answer on %s", qdetail, s.LocalDNS)
+		log.Printf("[LRRC] %v Query %s Select local answer on %s", src, qdetail, s.LocalDNS)
 		return local
 	}
 	// if not match above just return local
