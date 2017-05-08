@@ -59,13 +59,14 @@ case $1 in
     build-redirect)
         build_redirect
         ;;
+    build-all)
+        build_releases
+        build_redirect
+        ;;
     clean)
         clean_build
         ;;
-    help)
-        echo "build.sh (build|build_redirect|clean|help)"
-        ;;
     *)
-        build_releases
+        echo "build.sh (build|build-redirect|build-all|clean|help)"
         ;;
 esac
