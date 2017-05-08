@@ -11,7 +11,10 @@ build_redirect() {
     if [ ! -d ${BUILD_BASE}/redirect ]; then
         mkdir -p ${BUILD_BASE}/redirect
     fi
-    cp ${BASE_DIR}/redirect-scripts/* ${BUILD_BASE}/redirect/
+    cp ${BASE_DIR}/redirect-scripts/redir-iptables.sh ${BUILD_BASE}/redirect/
+    cp ${BASE_DIR}/redirect-scripts/setup ${BUILD_BASE}/redirect/
+    cp ${BASE_DIR}/redirect-scripts/chnroute.txt ${BUILD_BASE}/redirect/
+    cat ${BASE_DIR}/redirect-scripts/chnroute.patch >> ${BUILD_BASE}/redirect/chnroute.txt
     cp ${BUILD_BASE}/linux-amd64/muss-redir ${BUILD_BASE}/redirect/
     cp ${BUILD_BASE}/linux-amd64/muss-smartdns ${BUILD_BASE}/redirect/
     cd ${BUILD_BASE}; tar zcf redirect.tar.gz redirect

@@ -1,0 +1,160 @@
+#!/usr/bin/env python
+import os
+import subprocess
+from shutil import copyfile
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+MUSS_CONFIG_TPL = '''{
+    "auth": true,
+    "local_port": 7070,
+    "server_password": [
+        ["%s", "%s", "%s"]
+    ],
+    "user_id": %d,
+    "enable_dns_proxy": true,
+    "target_dns_server": "8.8.8.8:53",
+    "dns_proxy_port": 5454
+}
+'''
+
+DNSMASQ_CONFIG_TPL = '''port=53
+no-resolv
+server=127.0.0.1#5555
+interface=%s
+dhcp-range=%s,%s,%dh
+dhcp-option=option:router,%s
+dhcp-option=option:dns-server,%s
+'''
+
+SUPERVISORD_CONFIG = '''[supervisord]
+logfile=/var/log/supervisord.log
+loglevel=error
+minfds=65535
+user=root
+
+[program:smartdns]
+command=/muss/muss-smartdns -b 127.0.0.1 -p 5555 -c /etc/muss/chnroute.txt -r 127.0.0.1:5454
+
+[program:muss-redir]
+command=/muss/muss-redir -c /etc/muss/config.json -l 0.0.0.0 -L 0.0.0.0
+
+[program:dnsmasq]
+command=/usr/sbin/dnsmasq -d -C /etc/muss/dnsmasq.conf
+'''
+
+RC_LOCAL = '''#!/bin/sh -e
+
+/muss/redir-iptables.sh setup
+/usr/bin/supervisord -c /etc/muss/supervisord.conf
+'''
+
+
+def cmd(cmd):
+    """
+    Execute a command, return stdout and stderr in tuple
+    """
+    process = None
+    try:
+        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True)
+        return process.communicate()
+    finally:
+        if process is not None:
+            process.stdout.close()
+            process.stderr.close()
+
+
+def write_config_file(fname, content):
+    with open(fname, "w+") as fp:
+        fp.write(content)
+
+
+def install_packages_ubuntu():
+    print("Install Packages")
+    cmd("apt-get update")
+    cmd("apt-get install -y --force-yes dnsmasq supervisor ipset")
+    cmd("service dnsmasq stop")
+    cmd("service supervisor stop")
+    cmd("update-rc.d -f dnsmasq remove")
+    cmd("update-rc.d -f supervisor remove")
+
+
+def generate_configs():
+    print("Generate Config Files")
+    # Ensure config DIR
+    cmd("mkdir -p /etc/muss")
+    # Muss-redir config
+    userid = raw_input("Please enter muss User ID: ").strip()
+    try:
+        userid = int(userid)
+    except:
+        print("Please input number!")
+        os.exit(1)
+    server_ip = raw_input("Please enter muss server IP: ").strip()
+    password = raw_input("Please enter muss password: ").strip()
+    method = raw_input("Please enter crypt method [aes-128-cfg-auth]: ").strip()
+    if method == "":
+        method = "aes-128-cfg-auth"
+    cfg_str = MUSS_CONFIG_TPL % (server_ip, password, method, userid)
+    write_config_file("/etc/muss/config.json", cfg_str)
+    # DNSMasq config
+    dhcp_iface = raw_input("Please input DHCP NIC name: ").strip()
+    dhcp_range_start = raw_input("Please input DHCP start IP: [192.168.1.100]").strip()
+    if dhcp_range_start == "":
+        dhcp_range_start = "192.168.1.100"
+    dhcp_range_end = raw_input("Please input DHCP end IP [192.168.1.200]: ").strip()
+    if dhcp_range_end == "":
+        dhcp_range_end = "192.168.1.200"
+    dhcp_lease_time = raw_input("Please input DHCP lease time [48]: ").strip()
+    if dhcp_lease_time == "":
+        dhcp_lease_time = "48"
+    try:
+        dhcp_lease_time = int(dhcp_lease_time)
+    except:
+        print "Please input number!"
+        os.exit(1)
+    gateway_ip = raw_input("Please input DHCP gateway option: ").strip()
+    dns_ip = raw_input("Please input DHCP DNS option [%s]:" % gateway_ip).strip()
+    if dns_ip == "":
+        dns_ip = gateway_ip
+    cfg_str = DNSMASQ_CONFIG_TPL % (dhcp_iface, dhcp_range_start, dhcp_range_end, dhcp_lease_time, gateway_ip, dns_ip)
+    write_config_file("/etc/muss/dnsmasq.conf", cfg_str)
+    write_config_file("/etc/muss/supervisord.conf", SUPERVISORD_CONFIG)
+    write_config_file("/etc/rc.local", RC_LOCAL)
+
+
+def copy_files():
+    print("Copy Files")
+    cmd("mkdir -p /muss")
+    for fname in ['muss-smartdns', 'muss-redir', 'redir-iptables.sh']:
+        local_path = "%s/%s" % (BASE_DIR, fname)
+        target = "/muss/%s" % fname
+        copyfile(local_path, target)
+        cmd("chmod 755 %s" % target)
+
+    cmd("mkdir -p /etc/muss")
+    for fname in ['chnroute.txt']:
+        local_path = "%s/%s" % (BASE_DIR, fname)
+        copyfile(local_path, "/etc/muss/%s" % fname)
+
+
+def start_service():
+    cmd("/muss/redir-iptables.sh setup")
+    cmd("/usr/bin/supervisord -c /etc/muss/supervisord.conf")
+    print("Service Started")
+
+
+def main():
+    install_packages_ubuntu()
+    copy_files()
+    generate_configs()
+    print("Setup Finish")
+    start = raw_input("Start Service? [No] ").strip()
+    if start == "":
+        start = "no"
+    if start.lower() in ["yes", "y"]:
+        start_service()
+
+
+if __name__ == "__main__":
+    main()
