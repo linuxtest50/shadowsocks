@@ -33,7 +33,7 @@ reload_ipset() {
 
 setup_ipset() {
     have_set=`ipset list -t | grep "Name: chnroute"`
-    if [ -z $have_set ]; then
+    if [ -z "$have_set" ]; then
         ipset create chnroute hash:net maxelem 65536
     fi
     reload_ipset
