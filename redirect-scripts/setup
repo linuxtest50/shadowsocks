@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os
 import subprocess
+import socket
 from shutil import copy2
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -21,6 +22,7 @@ MUSS_CONFIG_TPL = '''{
 DNSMASQ_CONFIG_TPL = '''port=53
 no-resolv
 server=127.0.0.1#5555
+max-cache-ttl=60
 interface=%s
 dhcp-range=%s,%s,%dh
 dhcp-option=option:router,%s
@@ -64,6 +66,40 @@ def cmd(cmd):
             process.stderr.close()
 
 
+def validate_string(data):
+    if data == "":
+        raise Exception("Please input data")
+    return data
+
+
+def validate_number(data):
+    try:
+        return int(data)
+    except:
+        raise Exception("Please input number")
+
+
+def validate_ip(data):
+    try:
+        socket.inet_aton(data)
+        return data
+    except:
+        raise Exception("Please input IP address")
+
+
+def get_input(msg, validate=validate_string, default=None, repeat=10):
+    for i in range(repeat):
+        data = raw_input(msg).strip()
+        try:
+            if data == "" and default is not None:
+                return default
+            return validate(data)
+        except Exception as e:
+            print unicode(e)
+    print("Repeat too many times")
+    os.exit(1)
+
+
 def write_config_file(fname, content):
     with open(fname, "w+") as fp:
         fp.write(content)
@@ -84,39 +120,19 @@ def generate_configs():
     # Ensure config DIR
     cmd("mkdir -p /etc/muss")
     # Muss-redir config
-    userid = raw_input("Please enter muss User ID: ").strip()
-    try:
-        userid = int(userid)
-    except:
-        print("Please input number!")
-        os.exit(1)
-    server_ip = raw_input("Please enter muss server IP: ").strip()
-    password = raw_input("Please enter muss password: ").strip()
-    method = raw_input("Please enter crypt method [aes-128-cfg-auth]: ").strip()
-    if method == "":
-        method = "aes-128-cfg-auth"
+    userid = get_input("Please enter muss User ID: ", validate_number)
+    server_ip = get_input("Please enter muss server IP: ", validate_ip)
+    password = get_input("Please enter muss password: ")
+    method = get_input("Please enter crypt method [aes-128-cfb-auth]: ", default="aes-128-cfb-auth")
     cfg_str = MUSS_CONFIG_TPL % (server_ip, password, method, userid)
     write_config_file("/etc/muss/config.json", cfg_str)
     # DNSMasq config
-    dhcp_iface = raw_input("Please input DHCP NIC name: ").strip()
-    dhcp_range_start = raw_input("Please input DHCP start IP: [192.168.1.100]").strip()
-    if dhcp_range_start == "":
-        dhcp_range_start = "192.168.1.100"
-    dhcp_range_end = raw_input("Please input DHCP end IP [192.168.1.200]: ").strip()
-    if dhcp_range_end == "":
-        dhcp_range_end = "192.168.1.200"
-    dhcp_lease_time = raw_input("Please input DHCP lease time [48]: ").strip()
-    if dhcp_lease_time == "":
-        dhcp_lease_time = "48"
-    try:
-        dhcp_lease_time = int(dhcp_lease_time)
-    except:
-        print "Please input number!"
-        os.exit(1)
-    gateway_ip = raw_input("Please input DHCP gateway option: ").strip()
-    dns_ip = raw_input("Please input DHCP DNS option [%s]:" % gateway_ip).strip()
-    if dns_ip == "":
-        dns_ip = gateway_ip
+    dhcp_iface = get_input("Please input DHCP NIC name: ")
+    dhcp_range_start = get_input("Please input DHCP start IP: [192.168.1.100]", validate_ip, "192.168.1.100")
+    dhcp_range_end = get_input("Please input DHCP end IP [192.168.1.200]: ", validate_ip, "192.168.1.100")
+    dhcp_lease_time = get_input("Please input DHCP lease time [48]: ", validate_number, 48)
+    gateway_ip = get_input("Please input DHCP gateway option: ", validate_ip)
+    dns_ip = get_input("Please input DHCP DNS option [%s]:" % gateway_ip, validate_ip, default=gateway_ip)
     cfg_str = DNSMASQ_CONFIG_TPL % (dhcp_iface, dhcp_range_start, dhcp_range_end, dhcp_lease_time, gateway_ip, dns_ip)
     write_config_file("/etc/muss/dnsmasq.conf", cfg_str)
     write_config_file("/etc/muss/supervisord.conf", SUPERVISORD_CONFIG)
