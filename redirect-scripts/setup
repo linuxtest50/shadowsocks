@@ -2,6 +2,7 @@
 import os
 import subprocess
 import socket
+import platform
 from shutil import copy2
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -10,7 +11,7 @@ MUSS_CONFIG_TPL = '''{
     "auth": true,
     "local_port": 7070,
     "server_password": [
-        ["%s", "%s", "%s"]
+        ["%s:8387", "%s", "%s"]
     ],
     "user_id": %d,
     "enable_dns_proxy": true,
@@ -22,7 +23,7 @@ MUSS_CONFIG_TPL = '''{
 DNSMASQ_CONFIG_TPL = '''port=53
 no-resolv
 server=127.0.0.1#5555
-max-cache-ttl=60
+%s
 interface=%s
 dhcp-range=%s,%s,%dh
 dhcp-option=option:router,%s
@@ -46,7 +47,7 @@ command=/usr/sbin/dnsmasq -d -C /etc/muss/dnsmasq.conf
 '''
 
 RC_LOCAL = '''#!/bin/sh -e
-
+ulimit -n 65535
 /muss/redir-iptables.sh setup
 /usr/bin/supervisord -c /etc/muss/supervisord.conf
 '''
@@ -105,15 +106,57 @@ def write_config_file(fname, content):
         fp.write(content)
 
 
-def install_packages_ubuntu():
-    print("Install Packages")
-    cmd("apt-get update")
-    cmd("apt-get install -y --force-yes dnsmasq supervisor ipset")
-    cmd("service dnsmasq stop")
-    cmd("service supervisor stop")
-    cmd("update-rc.d -f dnsmasq remove")
-    cmd("update-rc.d -f supervisor remove")
+class PackageInstaller(object):
+    def __init__(self):
+        self.dist = platform.dist()
 
+    def install(self):
+        print("Install Packages")
+        print("Distribution is %s" % " ".join(self.dist))
+        if self.dist[0].lower() == "ubuntu":
+            self.install_packages_ubuntu()
+            self.configure_ubuntu()
+        elif self.dist[0].lower() == "centos":
+            self.install_packages_centos()
+            self.configure_centos()
+        else:
+            print("Do not support: %s" % self.dist[0])
+
+    def install_packages_ubuntu(self):
+        cmd("apt-get update")
+        cmd("apt-get install -y --force-yes dnsmasq supervisor ipset")
+
+    def install_packages_centos(self):
+        cmd("yum install -y ipset dnsmasq epel-release")
+        cmd("yum install -y supervisor")
+
+    def configure_centos(self):
+        pass
+
+    def configure_ubuntu(self):
+        if self.dist[1] <= "14.04":
+            self.configure_ubuntu_upstart()
+        else:
+            self.configure_ubuntu_systemd()
+
+    def configure_ubuntu_upstart(self):
+        cmd("service dnsmasq stop")
+        cmd("service supervisor stop")
+        cmd("update-rc.d -f dnsmasq remove")
+        cmd("update-rc.d -f supervisor remove")
+
+    def configure_ubuntu_systemd(self):
+        cmd("systemctl stop dnsmasq")
+        cmd("systemctl stop supervisor")
+        cmd("systemctl disable dnsmasq")
+        cmd("systemctl disable supervisor")
+
+
+def get_dnsmasq_cache_parameter():
+    out, err = cmd("/usr/sbin/dnsmasq --help")
+    if out.find("max-cache-ttl") != -1:
+        return "max-cache-ttl=60"
+    return ""
 
 def generate_configs():
     print("Generate Config Files")
@@ -133,7 +176,8 @@ def generate_configs():
     dhcp_lease_time = get_input("Please input DHCP lease time [48]: ", validate_number, 48)
     gateway_ip = get_input("Please input DHCP gateway option: ", validate_ip)
     dns_ip = get_input("Please input DHCP DNS option [%s]:" % gateway_ip, validate_ip, default=gateway_ip)
-    cfg_str = DNSMASQ_CONFIG_TPL % (dhcp_iface, dhcp_range_start, dhcp_range_end, dhcp_lease_time, gateway_ip, dns_ip)
+    cache_cfg = get_dnsmasq_cache_parameter()
+    cfg_str = DNSMASQ_CONFIG_TPL % (cache_cfg, dhcp_iface, dhcp_range_start, dhcp_range_end, dhcp_lease_time, gateway_ip, dns_ip)
     write_config_file("/etc/muss/dnsmasq.conf", cfg_str)
     write_config_file("/etc/muss/supervisord.conf", SUPERVISORD_CONFIG)
     write_config_file("/etc/rc.local", RC_LOCAL)
@@ -154,13 +198,14 @@ def copy_files():
 
 
 def start_service():
+    cmd("ulimit -n 65535")
     cmd("/muss/redir-iptables.sh setup")
     cmd("/usr/bin/supervisord -c /etc/muss/supervisord.conf")
     print("Service Started")
 
 
 def main():
-    install_packages_ubuntu()
+    PackageInstaller().install()
     copy_files()
     generate_configs()
     print("Setup Finish")
