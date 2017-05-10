@@ -7,17 +7,20 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/miekg/dns"
 )
 
 type SmartDNSServer struct {
-	Address     string
-	Port        int
-	IPSet       *HashIPSet
-	LocalDNS    string
-	RemoteDNS   string
-	Conn        *net.UDPConn
-	Selector    *DNSResultSelector
-	ReadTimeout time.Duration
+	Address      string
+	Port         int
+	IPSet        *HashIPSet
+	LocalDNS     string
+	RemoteDNS    string
+	RemoteDNSTcp string
+	Conn         *net.UDPConn
+	Selector     *DNSResultSelector
+	ReadTimeout  time.Duration
 }
 
 type DNSResult struct {
@@ -90,6 +93,59 @@ func (s *SmartDNSServer) SendPacketTo(target string, buf []byte, reschan chan *D
 	return
 }
 
+func (s *SmartDNSServer) QueryDNSViaTCP(target string, buf []byte) *DNSResult {
+	var dnstarget = target
+	result := DNSResult{Size: 0, Buffer: nil, Error: nil}
+	if !strings.Contains(target, ":") {
+		dnstarget += ":53"
+	}
+	_, err := net.ResolveTCPAddr("tcp", dnstarget)
+	if err != nil {
+		result.Error = err
+		return &result
+	}
+	msg := new(dns.Msg)
+	err = msg.Unpack(buf)
+	if err != nil {
+		result.Error = err
+		return &result
+	}
+	c := new(dns.Client)
+	c.Net = "tcp"
+	c.ReadTimeout = s.ReadTimeout
+	res, _, err := c.Exchange(msg, dnstarget)
+	if err != nil {
+		result.Error = err
+		return &result
+	}
+	result.Buffer, result.Error = res.Pack()
+	result.Size = len(result.Buffer)
+	return &result
+}
+
+func (s *SmartDNSServer) QueryLocal(buf []byte, reschan chan *DNSResult) {
+	s.SendPacketTo(s.LocalDNS, buf, reschan)
+}
+
+func (s *SmartDNSServer) QueryRemote(buf []byte, reschan chan *DNSResult) {
+	rchan := make(chan *DNSResult, 1)
+	s.SendPacketTo(s.RemoteDNS, buf, rchan)
+	var udpRes *DNSResult
+	udpRes = <-rchan
+	if udpRes.Error == nil {
+		reschan <- udpRes
+		return
+	}
+	if s.RemoteDNSTcp == "" {
+		reschan <- udpRes
+		return
+	}
+	log.Println("Query Remote DNS Via TCP")
+	tcpRes := s.QueryDNSViaTCP(s.RemoteDNSTcp, buf)
+	reschan <- tcpRes
+	return
+}
+
 func (s *SmartDNSServer) HandleUDPPacket(n int, src *net.UDPAddr, buf []byte) {
 	// We catch panic on this goroutine to prevent system crash on one query
 	// got some error.
@@ -108,8 +164,8 @@ func (s *SmartDNSServer) HandleUDPPacket(n int, src *net.UDPAddr, buf []byte) {
 	lrchan := make(chan *DNSResult)
 	rrchan := make(chan *DNSResult)
 	// Query A or AAAA, use Selector to choose best result
-	go s.SendPacketTo(s.LocalDNS, buf, lrchan)
-	go s.SendPacketTo(s.RemoteDNS, buf, rrchan)
+	go s.QueryLocal(buf, lrchan)
+	go s.QueryRemote(buf, rrchan)
 	var lrres, rrres *DNSResult
 	lrres = <-lrchan
 	rrres = <-rrchan

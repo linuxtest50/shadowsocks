@@ -14,7 +14,7 @@ func main() {
 	log.SetOutput(os.Stdout)
 
 	var showVersion bool
-	var bindAddr, routeFile, localDNS, remoteDNS string
+	var bindAddr, routeFile, localDNS, remoteDNS, remoteDNSTcp string
 	var port, timeout int
 
 	flag.BoolVar(&showVersion, "v", false, "Print version")
@@ -23,6 +23,7 @@ func main() {
 	flag.StringVar(&routeFile, "c", "", "Path to China route file")
 	flag.StringVar(&localDNS, "l", "114.114.114.114", "DNS in China")
 	flag.StringVar(&remoteDNS, "r", "8.8.8.8", "DNS out of China")
+	flag.StringVar(&remoteDNSTcp, "R", "8.8.8.8", "DNS out of China via TCP")
 	flag.IntVar(&timeout, "t", 500, "Read timeout in ms")
 	flag.Parse()
 
@@ -38,12 +39,13 @@ func main() {
 	}
 
 	server := &SmartDNSServer{
-		Address:     bindAddr,
-		Port:        port,
-		IPSet:       ipset,
-		LocalDNS:    localDNS,
-		RemoteDNS:   remoteDNS,
-		ReadTimeout: time.Duration(timeout) * time.Millisecond,
+		Address:      bindAddr,
+		Port:         port,
+		IPSet:        ipset,
+		LocalDNS:     localDNS,
+		RemoteDNS:    remoteDNS,
+		RemoteDNSTcp: remoteDNSTcp,
+		ReadTimeout:  time.Duration(timeout) * time.Millisecond,
 	}
 	server.Run()
 }
