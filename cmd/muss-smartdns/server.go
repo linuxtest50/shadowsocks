@@ -113,6 +113,7 @@ func (s *SmartDNSServer) QueryDNSViaTCP(target string, buf []byte) *DNSResult {
 	c := new(dns.Client)
 	c.Net = "tcp"
 	c.ReadTimeout = s.ReadTimeout
+	c.DialTimeout = s.ReadTimeout
 	res, _, err := c.Exchange(msg, dnstarget)
 	if err != nil {
 		result.Error = err

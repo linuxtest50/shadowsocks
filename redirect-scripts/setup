@@ -52,7 +52,6 @@ ulimit -n 65535
 /usr/bin/supervisord -c /etc/muss/supervisord.conf
 '''
 
-
 def cmd(cmd):
     """
     Execute a command, return stdout and stderr in tuple
@@ -65,6 +64,22 @@ def cmd(cmd):
         if process is not None:
             process.stdout.close()
             process.stderr.close()
+
+
+def get_interfaces():
+    out, err = cmd('ifconfig | grep "^[a-z|A-Z|0-9]"')
+    ret = []
+    for line in out.split("\n"):
+        if line.strip() == "":
+            continue
+        ifname = line.split()[0].strip()
+        if ifname[-1] == ":":
+            ifname = ifname[0:-1]
+        ret.append(ifname)
+    return ret
+
+
+INTERFACES = get_interfaces()
 
 
 def validate_string(data):
@@ -86,6 +101,12 @@ def validate_ip(data):
         return data
     except:
         raise Exception("Please input IP address")
+
+
+def validate_interfaces(data):
+    if data in INTERFACES:
+        return data
+    raise Exception("NIC name %s is not valid" % data)
 
 
 def get_input(msg, validate=validate_string, default=None, repeat=10):
@@ -170,7 +191,7 @@ def generate_configs():
     cfg_str = MUSS_CONFIG_TPL % (server_ip, password, method, userid)
     write_config_file("/etc/muss/config.json", cfg_str)
     # DNSMasq config
-    dhcp_iface = get_input("Please input DHCP NIC name: ")
+    dhcp_iface = get_input("Please input DHCP NIC name (%s): " % (", ".join(INTERFACES)), validate_interfaces)
     dhcp_range_start = get_input("Please input DHCP start IP: [192.168.1.100]", validate_ip, "192.168.1.100")
     dhcp_range_end = get_input("Please input DHCP end IP [192.168.1.200]: ", validate_ip, "192.168.1.100")
     dhcp_lease_time = get_input("Please input DHCP lease time [48]: ", validate_number, 48)
