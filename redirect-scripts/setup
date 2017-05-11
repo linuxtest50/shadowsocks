@@ -109,6 +109,11 @@ def validate_interfaces(data):
     raise Exception("NIC name %s is not valid" % data)
 
 
+def validate_bool(data):
+    ldata = data.lower()
+    return ldata in ["y", "yes"]
+
+
 def get_input(msg, validate=validate_string, default=None, repeat=10):
     for i in range(repeat):
         data = raw_input(msg).strip()
@@ -173,7 +178,14 @@ class PackageInstaller(object):
         cmd("systemctl disable supervisor")
 
 
-def get_dnsmasq_cache_parameter():
+def support_max_cache_ttl():
+    out, err = cmd("/usr/sbin/dnsmasq --help")
+    return out.find("max-cache-ttl") != -1
+
+
+def get_dnsmasq_cache_parameter(enable):
+    if not enable:
+        return ""
     out, err = cmd("/usr/sbin/dnsmasq --help")
     if out.find("max-cache-ttl") != -1:
         return "max-cache-ttl=60"
@@ -197,7 +209,11 @@ def generate_configs():
     dhcp_lease_time = get_input("Please input DHCP lease time [48]: ", validate_number, 48)
     gateway_ip = get_input("Please input DHCP gateway option: ", validate_ip)
     dns_ip = get_input("Please input DHCP DNS option [%s]:" % gateway_ip, validate_ip, default=gateway_ip)
-    cache_cfg = get_dnsmasq_cache_parameter()
+    if support_max_cache_ttl():
+        short_cache_ttl_enable = get_input("Enable short DNS cache TTL (Yes/No) [No]:", validate_bool, default=False)
+    else:
+        short_cache_ttl_enable = False
+    cache_cfg = get_dnsmasq_cache_parameter(short_cache_ttl_enable)
     cfg_str = DNSMASQ_CONFIG_TPL % (cache_cfg, dhcp_iface, dhcp_range_start, dhcp_range_end, dhcp_lease_time, gateway_ip, dns_ip)
     write_config_file("/etc/muss/dnsmasq.conf", cfg_str)
     write_config_file("/etc/muss/supervisord.conf", SUPERVISORD_CONFIG)
