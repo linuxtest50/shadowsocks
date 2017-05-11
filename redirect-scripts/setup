@@ -196,21 +196,21 @@ def generate_configs():
     # Ensure config DIR
     cmd("mkdir -p /etc/muss")
     # Muss-redir config
-    userid = get_input("Please enter muss User ID: ", validate_number)
-    server_ip = get_input("Please enter muss server IP: ", validate_ip)
-    password = get_input("Please enter muss password: ")
-    method = get_input("Please enter crypt method [aes-128-cfb-auth]: ", default="aes-128-cfb-auth")
+    userid = get_input("Please input muss User ID: ", validate_number)
+    server_ip = get_input("Please input muss server IP: ", validate_ip)
+    password = get_input("Please input muss password: ")
+    method = get_input("Please input crypt method [aes-128-cfb-auth]: ", default="aes-128-cfb-auth")
     cfg_str = MUSS_CONFIG_TPL % (server_ip, password, method, userid)
     write_config_file("/etc/muss/config.json", cfg_str)
     # DNSMasq config
     dhcp_iface = get_input("Please input DHCP NIC name (%s): " % (", ".join(INTERFACES)), validate_interfaces)
-    dhcp_range_start = get_input("Please input DHCP start IP: [192.168.1.100]", validate_ip, "192.168.1.100")
+    dhcp_range_start = get_input("Please input DHCP start IP [192.168.1.100]: ", validate_ip, "192.168.1.100")
     dhcp_range_end = get_input("Please input DHCP end IP [192.168.1.200]: ", validate_ip, "192.168.1.100")
     dhcp_lease_time = get_input("Please input DHCP lease time [48]: ", validate_number, 48)
     gateway_ip = get_input("Please input DHCP gateway option: ", validate_ip)
-    dns_ip = get_input("Please input DHCP DNS option [%s]:" % gateway_ip, validate_ip, default=gateway_ip)
+    dns_ip = get_input("Please input DHCP DNS option [%s]: " % gateway_ip, validate_ip, default=gateway_ip)
     if support_max_cache_ttl():
-        short_cache_ttl_enable = get_input("Enable short DNS cache TTL (Yes/No) [No]:", validate_bool, default=False)
+        short_cache_ttl_enable = get_input("Enable short DNS cache TTL (Yes/No) [No]: ", validate_bool, default=False)
     else:
         short_cache_ttl_enable = False
     cache_cfg = get_dnsmasq_cache_parameter(short_cache_ttl_enable)
@@ -246,10 +246,8 @@ def main():
     copy_files()
     generate_configs()
     print("Setup Finish")
-    start = raw_input("Start Service? [No] ").strip()
-    if start == "":
-        start = "no"
-    if start.lower() in ["yes", "y"]:
+    start = get_input("Start Service (Yes/No) [No]: ", validate_bool, default=False)
+    if start:
         start_service()
 
 
