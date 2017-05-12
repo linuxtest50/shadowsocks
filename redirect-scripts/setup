@@ -208,7 +208,7 @@ def generate_configs():
     # DNSMasq config
     dhcp_iface = get_input("Please input DHCP NIC name (%s): " % (", ".join(INTERFACES)), validate_interfaces)
     dhcp_range_start = get_input("Please input DHCP start IP [192.168.1.100]: ", validate_ip, "192.168.1.100")
-    dhcp_range_end = get_input("Please input DHCP end IP [192.168.1.200]: ", validate_ip, "192.168.1.100")
+    dhcp_range_end = get_input("Please input DHCP end IP [192.168.1.200]: ", validate_ip, "192.168.1.200")
     dhcp_lease_time = get_input("Please input DHCP lease time [48]: ", validate_number, 48)
     gateway_ip = get_input("Please input DHCP gateway option: ", validate_ip)
     dns_ip = get_input("Please input DHCP DNS option [%s]: " % gateway_ip, validate_ip, default=gateway_ip)
