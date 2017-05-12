@@ -3,21 +3,7 @@ PUB_ETH=eth0
 CONFIG_PATH=/etc/muss
 CHNROUTE_CONFIG=${CONFIG_PATH}/chnroute.txt
 CHNROUTE_PATCH=${CONFIG_PATH}/chnroute.patch
-
-install_chnroute() {
-    if [ ! -d $CONFIG_PATH ]; then
-        mkdir -p $CONFIG_PATH
-    fi
-    basedir=`dirname $0`
-    if [ -h $0 ]; then
-        link_abs_path=`readlink $0`
-        basedir=`dirname $link_abs_path`
-    fi
-    cp ${basedir}/chnroute.txt $CONFIG_PATH
-    if [ -f ${basedir}/chnroute.patch ]; then
-        cp ${basedir}/chnroute.patch $CONFIG_PATH
-    fi
-}
+SUPERVISORD_PID_FILE=/var/run/muss-supervisord.pid
 
 reload_ipset() {
     ipset flush chnroute
@@ -39,9 +25,20 @@ setup_ipset() {
     reload_ipset
 }
 
+clean_iptables() {
+    iptables -t nat -F
+    iptables -t nat -X MUSS
+}
+
 setup_gateway_mode() {
     sysctl net.ipv4.ip_forward=1
     iptables -t nat -I POSTROUTING -o ${PUB_ETH} -j MASQUERADE
+}
+
+stop_supervisor() {
+    if [ -f $SUPERVISORD_PID_FILE ]; then
+        kill `cat $SUPERVISORD_PID_FILE`
+    fi
 }
 
 setup_iptables() {
@@ -69,10 +66,7 @@ setup_iptables() {
 }
 
 case $1 in
-    install):
-        install_chnroute
-        ;;
-    setup):
+    start):
         setup_ipset
         setup_iptables
         setup_gateway_mode
@@ -84,7 +78,12 @@ case $1 in
         setup_iptables
         setup_gateway_mode
         ;;
+    stop):
+        clean_iptables
+        setup_gateway_mode
+        stop_supervisor
+        ;;
     *):
-        echo "redir-iptables.sh (install|setup|reload-ipset|reload-iptables)"
+        echo "redir-iptables.sh (start|stop|reload-ipset|reload-iptables)"
         ;;
 esac

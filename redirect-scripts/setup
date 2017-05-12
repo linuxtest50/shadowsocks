@@ -32,6 +32,7 @@ dhcp-option=option:dns-server,%s
 
 SUPERVISORD_CONFIG = '''[supervisord]
 logfile=/var/log/supervisord.log
+pidfile=/var/run/muss-supervisord.pid
 loglevel=error
 minfds=65535
 user=root
@@ -48,7 +49,7 @@ command=/usr/sbin/dnsmasq -d -C /etc/muss/dnsmasq.conf
 
 RC_LOCAL = '''#!/bin/sh -e
 ulimit -n 65535
-/muss/redir-iptables.sh setup
+/muss/redir-iptables.sh start
 /usr/bin/supervisord -c /etc/muss/supervisord.conf
 '''
 
@@ -97,6 +98,8 @@ def validate_number(data):
 
 def validate_ip(data):
     try:
+        if len(data.split(".")) != 4:
+            raise Exception("IP address format error")
         socket.inet_aton(data)
         return data
     except:
@@ -236,7 +239,7 @@ def copy_files():
 
 def start_service():
     cmd("ulimit -n 65535")
-    cmd("/muss/redir-iptables.sh setup")
+    cmd("/muss/redir-iptables.sh start")
     cmd("/usr/bin/supervisord -c /etc/muss/supervisord.conf")
     print("Service Started")
 
