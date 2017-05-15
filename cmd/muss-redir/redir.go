@@ -59,6 +59,7 @@ func handleConnection(conn net.Conn, userID int, useKCP bool) {
 			conn.Close()
 		}
 	}()
+	ss.SetReadTimeout(conn)
 	rawaddr, addr, err := getRedirAddr(conn)
 	if err != nil {
 		log.Println("error getting redir addr:", err)

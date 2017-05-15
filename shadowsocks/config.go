@@ -163,16 +163,17 @@ func UpdateConfig(old, new *Config) {
 			}
 		}
 	}
-
-	old.Timeout = new.Timeout
-	readTimeout = time.Duration(old.Timeout) * time.Second
-	udpTimeout = time.Duration(old.Timeout) * time.Second
-	if udpTimeout == 0 {
-		udpTimeout = 60 * time.Second
-	}
-	if readTimeout == 0 {
-		readTimeout = 60 * time.Second
-	}
+	/*
+		old.Timeout = new.Timeout
+		readTimeout = time.Duration(old.Timeout) * time.Second
+		udpTimeout = time.Duration(old.Timeout) * time.Second
+		if udpTimeout == 0 {
+			udpTimeout = 60 * time.Second
+		}
+		if readTimeout == 0 {
+			readTimeout = 60 * time.Second
+		}
+	*/
 }
 
 func SetTimeout(timeout time.Duration) {

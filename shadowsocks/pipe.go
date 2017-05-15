@@ -10,6 +10,7 @@ import (
 
 func SetReadTimeout(c net.Conn) {
 	if readTimeout != 0 {
+		Debug.Println(readTimeout)
 		c.SetReadDeadline(time.Now().Add(readTimeout))
 	}
 }
