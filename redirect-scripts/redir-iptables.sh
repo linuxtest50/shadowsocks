@@ -5,6 +5,9 @@ CHNROUTE_CONFIG=${CONFIG_PATH}/chnroute.txt
 CHNROUTE_PATCH=${CONFIG_PATH}/chnroute.patch
 SUPERVISORD_PID_FILE=/var/run/muss-supervisord.pid
 
+# add kernel modules for PPTP NAT
+modprobe nf_nat_pptp
+
 reload_ipset() {
     ipset flush chnroute
     for cidr in `cat ${CHNROUTE_CONFIG}`; do
