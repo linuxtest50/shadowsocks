@@ -6,7 +6,10 @@ CHNROUTE_PATCH=${CONFIG_PATH}/chnroute.patch
 SUPERVISORD_PID_FILE=/var/run/muss-supervisord.pid
 
 # add kernel modules for PPTP NAT
-modprobe nf_nat_pptp
+have_module=`lsmod | grep nf_nat_pptp`
+if [ -z "$have_module" ]; then
+    modprobe nf_nat_pptp
+fi
 
 reload_ipset() {
     ipset flush chnroute
