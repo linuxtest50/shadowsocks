@@ -48,9 +48,7 @@ command=/usr/sbin/dnsmasq -d -C /etc/muss/dnsmasq.conf
 '''
 
 RC_LOCAL = '''#!/bin/sh -e
-ulimit -n 65535
 /muss/redir-iptables.sh start
-/usr/bin/supervisord -c /etc/muss/supervisord.conf
 '''
 
 def cmd(cmd):

@@ -41,6 +41,17 @@ stop_supervisor() {
     fi
 }
 
+reload_supervisor() {
+    if [ -f $SUPERVISORD_PID_FILE ]; then
+        kill -HUP `cat $SUPERVISORD_PID_FILE`
+    fi
+}
+
+start_supervisor() {
+    ulimit -n 65535
+    /usr/bin/supervisord -c /etc/muss/supervisord.conf
+}
+
 setup_iptables() {
     # NAT table
     iptables -t nat -F
@@ -70,6 +81,23 @@ case $1 in
         setup_ipset
         setup_iptables
         setup_gateway_mode
+        start_supervisor
+        ;;
+    start-iptables):
+        setup_ipset
+        setup_iptables
+        setup_gateway_mode
+        ;;
+    start-supervisor):
+        start_supervisor
+        ;;
+    stop):
+        clean_iptables
+        setup_gateway_mode
+        stop_supervisor
+        ;;
+    reload):
+        reload_supervisor
         ;;
     reload-ipset):
         setup_ipset
@@ -78,12 +106,7 @@ case $1 in
         setup_iptables
         setup_gateway_mode
         ;;
-    stop):
-        clean_iptables
-        setup_gateway_mode
-        stop_supervisor
-        ;;
     *):
-        echo "redir-iptables.sh (start|stop|reload-ipset|reload-iptables)"
+        echo "redir-iptables.sh (start|start-iptables|start-supervisor|stop|reload|reload-ipset|reload-iptables)"
         ;;
 esac
