@@ -78,8 +78,10 @@ setup_iptables() {
     # muss-server port
     iptables -t nat -A MUSS -p tcp --dport 8387 -j RETURN
     # basic private network
-    iptables -t nat -A MUSS -d 172.16.0.0/16 -j RETURN
+    iptables -t nat -A MUSS -d 0.0.0.0/8 -j RETURN
+    iptables -t nat -A MUSS -d 10.0.0.0/8 -j RETURN
     iptables -t nat -A MUSS -d 127.0.0.0/8 -j RETURN
+    iptables -t nat -A MUSS -d 172.16.0.0/12 -j RETURN
     iptables -t nat -A MUSS -d 169.254.0.0/16 -j RETURN
     iptables -t nat -A MUSS -d 192.168.0.0/16 -j RETURN
     iptables -t nat -A MUSS -d 224.0.0.0/4 -j RETURN
