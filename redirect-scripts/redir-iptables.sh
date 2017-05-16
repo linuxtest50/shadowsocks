@@ -11,6 +11,19 @@ if [ -z "$have_module" ]; then
     modprobe nf_nat_pptp
 fi
 
+# Optimize Kernel
+optimize_kernel() {
+    sysctl -w net.core.somaxconn=262144
+    sysctl -w net.core.netdev_max_backlog=262144
+    sysctl -w net.ipv4.tcp_max_syn_backlog=262144
+    sysctl -w net.ipv4.tcp_max_orphans=262144
+    sysctl -w net.netfilter.nf_conntrack_max=262144
+    sysctl -w net.netfilter.nf_conntrack_tcp_timeout_established=7301
+}
+
+optimize_kernel
+# End Optimize Kernel
+
 reload_ipset() {
     ipset flush chnroute
     for cidr in `cat ${CHNROUTE_CONFIG}`; do

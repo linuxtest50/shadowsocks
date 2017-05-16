@@ -194,3 +194,21 @@ Delete User:
 ```
 DELETE FROM user WHERE userid='1001';
 ```
+
+## Server Side Optimization
+
+```
+sysctl -w net.core.somaxconn=262144
+sysctl -w net.core.netdev_max_backlog=262144
+sysctl -w net.ipv4.tcp_max_syn_backlog=262144
+sysctl -w net.ipv4.tcp_max_orphans=262144
+```
+
+sysctl.conf
+
+```
+net.core.somaxconn = 262144
+net.core.netdev_max_backlog = 262144
+net.ipv4.tcp_max_syn_backlog = 262144
+net.ipv4.tcp_max_orphans = 262144
+```
