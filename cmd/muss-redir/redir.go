@@ -49,7 +49,13 @@ func getRedirAddr(conn net.Conn) ([]byte, string, error) {
 	return getDestAddrIPv4(fd)
 }
 
-func handleConnection(conn net.Conn, userID int, useKCP bool) {
+func createTokenBucket(bandwidth int) *ss.Bucket {
+	rate := bandwidth * 1000 * 1000 / 8
+	var bursting int64 = 4096
+	return ss.NewBucketWithRate(float64(rate), bursting, int64(bandwidth))
+}
+
+func handleConnection(conn net.Conn, userID int, useKCP bool, bandwidth int) {
 	if debug {
 		debug.Printf("socks connect from %s\n", conn.RemoteAddr().String())
 	}
@@ -77,6 +83,12 @@ func handleConnection(conn net.Conn, userID int, useKCP bool) {
 			remote.Close()
 		}
 	}()
+	// Set Bandwidth
+	if bandwidth > 0 {
+		remote.WriteBucket = createTokenBucket(bandwidth)
+		remote.ReadBucket = createTokenBucket(bandwidth)
+	}
+	// End Set Bandwidth
 	go ss.PipeThenClose(conn, remote)
 	ss.PipeThenClose(remote, conn)
 	closed = true
@@ -153,7 +165,7 @@ func createServerConnWithUserID(rawaddr []byte, addr string, userID int, useKCP 
 	return nil, err
 }
 
-func runTCP(listenAddr string, userID int, useKCP bool) {
+func runTCP(listenAddr string, userID int, useKCP bool, bandwidth int) {
 	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		log.Fatal(err)
@@ -165,7 +177,7 @@ func runTCP(listenAddr string, userID int, useKCP bool) {
 			log.Println("accept:", err)
 			continue
 		}
-		go handleConnection(conn, userID, useKCP)
+		go handleConnection(conn, userID, useKCP, bandwidth)
 	}
 }
 
@@ -275,6 +287,7 @@ func main() {
 	log.SetOutput(os.Stdout)
 
 	var configFile, cmdServer, cmdLocal, udpLocal string
+	var bandwidth int
 	var cmdConfig ss.Config
 	var printVer bool
 	var useKCP bool
@@ -283,6 +296,7 @@ func main() {
 	flag.StringVar(&configFile, "c", "config.json", "specify config file")
 	flag.BoolVar((*bool)(&debug), "d", false, "print debug message")
 	flag.BoolVar(&useKCP, "K", false, "use KCP for TCP connection")
+	flag.IntVar(&bandwidth, "b", 0, "bandwidth per connection unit is Mbps 0 mean unlimited")
 	flag.StringVar(&cmdLocal, "l", "127.0.0.1", "Listen address default is 127.0.0.1")
 	flag.StringVar(&udpLocal, "L", "127.0.0.1", "UDP listen address default is 127.0.0.1")
 
@@ -342,5 +356,5 @@ func main() {
 	//if debug {
 	//	go reportKCPStatus()
 	//}
-	runTCP(cmdLocal+":"+strconv.Itoa(config.LocalPort), config.UserID, useKCP)
+	runTCP(cmdLocal+":"+strconv.Itoa(config.LocalPort), config.UserID, useKCP, bandwidth)
 }
