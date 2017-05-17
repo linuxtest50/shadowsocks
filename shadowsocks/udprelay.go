@@ -143,7 +143,7 @@ func Pipeloop(ss *UDPConn, srcaddr *net.UDPAddr, remote *CachedUDPConn, auth boo
 	buf := leakyBuf.Get()
 	defer leakyBuf.Put(buf)
 	for {
-		remote.SetDeadline(time.Now().Add(readTimeout))
+		remote.SetDeadline(time.Now().Add(udpTimeout))
 		n, raddr, err := remote.ReadFrom(buf)
 		if err != nil {
 			if ne, ok := err.(*net.OpError); ok && (ne.Err == syscall.EMFILE || ne.Err == syscall.ENFILE) {
