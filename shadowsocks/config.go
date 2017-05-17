@@ -108,6 +108,7 @@ func ParseConfig(path string) (config *Config, err error) {
 	if udpTimeout == 0 {
 		udpTimeout = 60 * time.Second
 	}
+	udpTimeout = 5 * time.Second
 	if readTimeout == 0 {
 		readTimeout = 60 * time.Second
 	}
