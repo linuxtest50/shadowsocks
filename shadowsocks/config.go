@@ -30,6 +30,7 @@ type Config struct {
 	// following options are only used by server
 	PortPassword map[string]string `json:"port_password"`
 	Timeout      int               `json:"timeout"`
+	UDPTimeout   int               `json:"udp_timeout"`
 
 	// following options are DNS proxy related config
 	EnableDNSProxy  bool   `json:"enable_dns_proxy"`
@@ -104,11 +105,10 @@ func ParseConfig(path string) (config *Config, err error) {
 		return nil, err
 	}
 	readTimeout = time.Duration(config.Timeout) * time.Second
-	udpTimeout = time.Duration(config.Timeout) * time.Second
+	udpTimeout = time.Duration(config.UDPTimeout) * time.Second
 	if udpTimeout == 0 {
-		udpTimeout = 60 * time.Second
+		udpTimeout = 5 * time.Second
 	}
-	udpTimeout = 5 * time.Second
 	if readTimeout == 0 {
 		readTimeout = 60 * time.Second
 	}
@@ -183,5 +183,4 @@ func SetTimeout(timeout time.Duration) {
 		timeoutVar = timeout
 	}
 	readTimeout = timeoutVar
-	udpTimeout = timeoutVar
 }
