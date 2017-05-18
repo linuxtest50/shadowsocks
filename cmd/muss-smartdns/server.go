@@ -130,12 +130,14 @@ func (s *SmartDNSServer) QueryLocal(buf []byte, reschan chan *DNSResult) {
 
 func (s *SmartDNSServer) QueryRemote(buf []byte, reschan chan *DNSResult) {
 	rchan := make(chan *DNSResult, 1)
-	s.SendPacketTo(s.RemoteDNS, buf, rchan)
 	var udpRes *DNSResult
-	udpRes = <-rchan
-	if udpRes.Error == nil {
-		reschan <- udpRes
-		return
+	for i := 0; i < 2; i++ {
+		s.SendPacketTo(s.RemoteDNS, buf, rchan)
+		udpRes = <-rchan
+		if udpRes.Error == nil {
+			reschan <- udpRes
+			return
+		}
 	}
 	if s.RemoteDNSTcp == "" {
 		reschan <- udpRes
