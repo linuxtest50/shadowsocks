@@ -50,7 +50,7 @@ func getRedirAddr(conn net.Conn) ([]byte, string, error) {
 }
 
 func createTokenBucket(bandwidth int) *ss.Bucket {
-	rate := bandwidth * 1000 * 1000 / 8
+	rate := bandwidth * 1000 * 1000 / 9
 	var bursting int64 = 4096
 	return ss.NewBucketWithRate(float64(rate), bursting, int64(bandwidth))
 }
