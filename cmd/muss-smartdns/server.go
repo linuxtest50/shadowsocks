@@ -12,15 +12,16 @@ import (
 )
 
 type SmartDNSServer struct {
-	Address      string
-	Port         int
-	IPSet        *HashIPSet
-	LocalDNS     string
-	RemoteDNS    string
-	RemoteDNSTcp string
-	Conn         *net.UDPConn
-	Selector     *DNSResultSelector
-	ReadTimeout  time.Duration
+	Address          string
+	Port             int
+	IPSet            *HashIPSet
+	LocalDNS         string
+	RemoteDNS        string
+	RemoteDNSTcp     string
+	Conn             *net.UDPConn
+	Selector         *DNSResultSelector
+	ReadTimeout      time.Duration
+	EnableCNAMECheck bool
 }
 
 type DNSResult struct {
@@ -30,7 +31,7 @@ type DNSResult struct {
 }
 
 func (s *SmartDNSServer) Run() {
-	s.Selector = NewDNSResultSelector(s.LocalDNS, s.RemoteDNS, s.IPSet)
+	s.Selector = NewDNSResultSelector(s.LocalDNS, s.RemoteDNS, s.IPSet, s.EnableCNAMECheck)
 	udpAddr := fmt.Sprintf("%s:%d", s.Address, s.Port)
 	uaddr, err := net.ResolveUDPAddr("udp", udpAddr)
 	if err != nil {

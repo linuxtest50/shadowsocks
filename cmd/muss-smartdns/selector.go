@@ -10,16 +10,18 @@ import (
 )
 
 type DNSResultSelector struct {
-	LocalDNS  string
-	RemoteDNS string
-	IPSet     *HashIPSet
+	LocalDNS         string
+	RemoteDNS        string
+	IPSet            *HashIPSet
+	EnableCNAMECheck bool
 }
 
-func NewDNSResultSelector(local string, remote string, ipset *HashIPSet) *DNSResultSelector {
+func NewDNSResultSelector(local string, remote string, ipset *HashIPSet, enableCNAMECheck bool) *DNSResultSelector {
 	return &DNSResultSelector{
-		LocalDNS:  local,
-		RemoteDNS: remote,
-		IPSet:     ipset,
+		LocalDNS:         local,
+		RemoteDNS:        remote,
+		IPSet:            ipset,
+		EnableCNAMECheck: enableCNAMECheck,
 	}
 }
 
@@ -38,10 +40,23 @@ func (s *DNSResultSelector) SelectResult(local []byte, remote []byte, qdetail st
 	if lerr != nil {
 		return remote
 	}
-	lanswer := s.GetAnswers(lmsg)
-	ranswer := s.GetAnswers(rmsg)
+	lanswer, lhascname := s.GetAnswers(lmsg)
+	ranswer, rhascname := s.GetAnswers(rmsg)
 	linipset := s.AnyInIPSet(lanswer)
 	rinipset := s.AnyInIPSet(ranswer)
+
+	if s.EnableCNAMECheck {
+		// Local or Remote have CNAME, just use local
+		if lhascname && rhascname {
+			log.Printf("[LCNRCN] %v Query %s Select local answer on %s", src, qdetail, s.LocalDNS)
+			return local
+		}
+
+		if !lhascname && rhascname {
+			log.Printf("[LARCN] %v Query %s Select remote answer on %s", src, qdetail, s.RemoteDNS)
+			return remote
+		}
+	}
 
 	// Local return China IP, remote return not China IP, use remote
 	if linipset && !rinipset {
@@ -78,15 +93,18 @@ func (s *DNSResultSelector) AnyInIPSet(answers []string) bool {
 	return false
 }
 
-func (s *DNSResultSelector) GetAnswers(msg *dns.Msg) []string {
+func (s *DNSResultSelector) GetAnswers(msg *dns.Msg) ([]string, bool) {
 	ret := []string{}
+	hascname := false
 	for _, answer := range msg.Answer {
 		if answer.Header().Rrtype == dns.TypeA {
 			ipv4 := answer.(*dns.A).A.String()
 			ret = append(ret, ipv4)
+		} else if answer.Header().Rrtype == dns.TypeCNAME {
+			hascname = true
 		}
 	}
-	return ret
+	return ret, hascname
 }
 
 func (s *DNSResultSelector) UnpackBuffer(query []byte) (*dns.Msg, error) {

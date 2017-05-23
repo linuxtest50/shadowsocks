@@ -13,7 +13,7 @@ const VERSION = "1.0.0"
 func main() {
 	log.SetOutput(os.Stdout)
 
-	var showVersion bool
+	var showVersion, enableCNAMECheck bool
 	var bindAddr, routeFile, localDNS, remoteDNS, remoteDNSTcp string
 	var port, timeout int
 
@@ -24,7 +24,8 @@ func main() {
 	flag.StringVar(&localDNS, "l", "114.114.114.114", "DNS in China")
 	flag.StringVar(&remoteDNS, "r", "8.8.8.8", "DNS out of China")
 	flag.StringVar(&remoteDNSTcp, "R", "8.8.8.8", "DNS out of China via TCP")
-	flag.IntVar(&timeout, "t", 500, "Read timeout in ms")
+	flag.IntVar(&timeout, "t", 1000, "Read timeout in ms")
+	flag.BoolVar(&enableCNAMECheck, "C", false, "Enable CNAME check")
 	flag.Parse()
 
 	if showVersion {
@@ -39,13 +40,14 @@ func main() {
 	}
 
 	server := &SmartDNSServer{
-		Address:      bindAddr,
-		Port:         port,
-		IPSet:        ipset,
-		LocalDNS:     localDNS,
-		RemoteDNS:    remoteDNS,
-		RemoteDNSTcp: remoteDNSTcp,
-		ReadTimeout:  time.Duration(timeout) * time.Millisecond,
+		Address:          bindAddr,
+		Port:             port,
+		IPSet:            ipset,
+		LocalDNS:         localDNS,
+		RemoteDNS:        remoteDNS,
+		RemoteDNSTcp:     remoteDNSTcp,
+		ReadTimeout:      time.Duration(timeout) * time.Millisecond,
+		EnableCNAMECheck: enableCNAMECheck,
 	}
 	server.Run()
 }
