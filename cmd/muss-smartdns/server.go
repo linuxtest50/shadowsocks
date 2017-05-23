@@ -22,6 +22,7 @@ type SmartDNSServer struct {
 	Selector         *DNSResultSelector
 	ReadTimeout      time.Duration
 	EnableCNAMECheck bool
+	ResolveRule      *ResolveRule
 }
 
 type DNSResult struct {
@@ -150,6 +151,27 @@ func (s *SmartDNSServer) QueryRemote(buf []byte, reschan chan *DNSResult) {
 	return
 }
 
+func (s *SmartDNSServer) CheckResolveRule(msg *dns.Msg, local *DNSResult, remote *DNSResult, src *net.UDPAddr, qdetail string) bool {
+	if s.ResolveRule == nil {
+		return false
+	}
+	for _, q := range msg.Question {
+		rtype := s.ResolveRule.GetResolvType(q.Name)
+		if rtype == RESOLVE_LOCAL && local.Size > 0 {
+			log.Printf("[FL] %v Query %s Force select local answer on %s\n", src, qdetail, s.LocalDNS)
+			result := local.Buffer
+			s.Conn.WriteToUDP(result, src)
+			return true
+		} else if rtype == RESOLVE_REMOTE && remote.Size > 0 {
+			log.Printf("[FR] %v Query %s Force select remote answer on %s\n", src, qdetail, s.RemoteDNS)
+			result := remote.Buffer
+			s.Conn.WriteToUDP(result, src)
+			return true
+		}
+	}
+	return false
+}
+
 func (s *SmartDNSServer) HandleUDPPacket(n int, src *net.UDPAddr, buf []byte) {
 	// We catch panic on this goroutine to prevent system crash on one query
 	// got some error.
@@ -178,6 +200,11 @@ func (s *SmartDNSServer) HandleUDPPacket(n int, src *net.UDPAddr, buf []byte) {
 	}
 	if rrres.Error != nil {
 		log.Printf("Got error from Remote DNS: %v\n", rrres.Error)
+	}
+	// Add filter for Resolve Rule check
+	// If resolve rule check hit, it will send package directly
+	if s.CheckResolveRule(msg, lrres, rrres, src, qdetail) {
+		return
 	}
 	var result []byte
 	if lrres.Size > 0 && rrres.Size > 0 && s.Selector.IsQueryA(msg) {

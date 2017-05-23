@@ -14,7 +14,7 @@ func main() {
 	log.SetOutput(os.Stdout)
 
 	var showVersion, enableCNAMECheck bool
-	var bindAddr, routeFile, localDNS, remoteDNS, remoteDNSTcp string
+	var bindAddr, routeFile, localDNS, remoteDNS, remoteDNSTcp, resolveRuleFile string
 	var port, timeout int
 
 	flag.BoolVar(&showVersion, "v", false, "Print version")
@@ -26,6 +26,7 @@ func main() {
 	flag.StringVar(&remoteDNSTcp, "R", "8.8.8.8", "DNS out of China via TCP")
 	flag.IntVar(&timeout, "t", 1000, "Read timeout in ms")
 	flag.BoolVar(&enableCNAMECheck, "C", false, "Enable CNAME check")
+	flag.StringVar(&resolveRuleFile, "f", "", "Resolve rule file")
 	flag.Parse()
 
 	if showVersion {
@@ -39,6 +40,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	resolveRule, err := NewResolveRule(resolveRuleFile)
+	if err != nil {
+		log.Println("[WARN] Cannot load resolve rule:", err)
+	}
+
 	server := &SmartDNSServer{
 		Address:          bindAddr,
 		Port:             port,
@@ -48,6 +54,7 @@ func main() {
 		RemoteDNSTcp:     remoteDNSTcp,
 		ReadTimeout:      time.Duration(timeout) * time.Millisecond,
 		EnableCNAMECheck: enableCNAMECheck,
+		ResolveRule:      resolveRule,
 	}
 	server.Run()
 }
