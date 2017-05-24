@@ -12,7 +12,7 @@ import (
 
 const VERSION = "1.1.0"
 
-func WaitSignal(resolveRule *ResolveRule) {
+func WaitSignal(resolveRule *ResolveRule, ipset *HashIPSet) {
 	var sigChan = make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, os.Kill, syscall.SIGHUP)
 	for sig := range sigChan {
@@ -24,6 +24,8 @@ func WaitSignal(resolveRule *ResolveRule) {
 			} else {
 				log.Println("[WARN] No resolve rule need reload")
 			}
+			ipset.Reload()
+			log.Println("Reload ipset")
 		} else {
 			log.Fatal("Server Exit\n")
 		}
@@ -77,5 +79,5 @@ func main() {
 		ResolveRule:      resolveRule,
 	}
 	go server.Run()
-	WaitSignal(resolveRule)
+	WaitSignal(resolveRule, ipset)
 }

@@ -6,22 +6,26 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 )
 
 type HashIPSet struct {
-	IPSet map[string]*net.IPNet
+	FileName string
+	IPSet    map[string]*net.IPNet
+	lock     sync.RWMutex
 }
 
 func NewHashIPSet(routeFile string) (*HashIPSet, error) {
 	ret := &HashIPSet{
-		IPSet: make(map[string]*net.IPNet),
+		FileName: routeFile,
+		IPSet:    make(map[string]*net.IPNet),
 	}
-	err := ret.LoadRouteFile(routeFile)
+	err := ret.Reload()
 	return ret, err
 }
 
-func (h *HashIPSet) LoadRouteFile(routeFile string) error {
-	fp, err := os.Open(routeFile)
+func (h *HashIPSet) Reload() error {
+	fp, err := os.Open(h.FileName)
 	if err != nil {
 		return err
 	}
@@ -30,6 +34,7 @@ func (h *HashIPSet) LoadRouteFile(routeFile string) error {
 	if err != nil {
 		return err
 	}
+	ipset := make(map[string]*net.IPNet)
 	lines := strings.Split(string(content), "\n")
 	for _, line := range lines {
 		tline := strings.TrimSpace(line)
@@ -41,13 +46,18 @@ func (h *HashIPSet) LoadRouteFile(routeFile string) error {
 			log.Printf("Error on parse CIDR: %v\n", tline)
 			continue
 		}
-		h.IPSet[ip.String()] = ipnet
+		ipset[ip.String()] = ipnet
 	}
+	h.lock.Lock()
+	h.IPSet = ipset
+	h.lock.Unlock()
 	log.Println("Load CIDR List Finish")
 	return nil
 }
 
 func (h *HashIPSet) Contains(ipstr string) bool {
+	h.lock.RLock()
+	defer h.lock.RUnlock()
 	ip := net.ParseIP(ipstr).To4()
 	for i := 31; i > 0; i-- {
 		mask := net.CIDRMask(i, 32)
