@@ -22,6 +22,7 @@ MUSS_CONFIG_TPL = '''{
 
 DNSMASQ_CONFIG_TPL = '''port=53
 no-resolv
+no-negcache
 server=127.0.0.1#5555
 %s
 interface=%s
