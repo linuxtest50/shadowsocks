@@ -80,10 +80,10 @@ func (r *ResolveRule) parseResolveRuleFile(data string) {
 			rrmap[value] = 1
 		}
 	}
-	for k, _ := range lrmap {
+	for k, _ := range rrmap {
 		remoteRule = append(remoteRule, k)
 	}
-	for k, _ := range rrmap {
+	for k, _ := range lrmap {
 		localRule = append(localRule, k)
 	}
 	r.lock.Lock()
