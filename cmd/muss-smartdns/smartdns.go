@@ -5,10 +5,30 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
-const VERSION = "1.0.0"
+const VERSION = "1.1.0"
+
+func WaitSignal(resolveRule *ResolveRule) {
+	var sigChan = make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, os.Kill, syscall.SIGHUP)
+	for sig := range sigChan {
+		if sig == syscall.SIGHUP {
+			// Reload resolve rule file
+			if resolveRule != nil {
+				log.Println("Reload resolve rule")
+				resolveRule.Reload()
+			} else {
+				log.Println("[WARN] No resolve rule need reload")
+			}
+		} else {
+			log.Fatal("Server Exit\n")
+		}
+	}
+}
 
 func main() {
 	log.SetOutput(os.Stdout)
@@ -56,5 +76,6 @@ func main() {
 		EnableCNAMECheck: enableCNAMECheck,
 		ResolveRule:      resolveRule,
 	}
-	server.Run()
+	go server.Run()
+	WaitSignal(resolveRule)
 }

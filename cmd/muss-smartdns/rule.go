@@ -4,11 +4,14 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"sync"
 )
 
 type ResolveRule struct {
+	FileName   string
 	LocalRule  []string
 	RemoteRule []string
+	lock       sync.RWMutex
 }
 
 const (
@@ -18,6 +21,8 @@ const (
 )
 
 func (r *ResolveRule) GetResolvType(odomain string) int {
+	r.lock.RLock()
+	defer r.lock.RUnlock()
 	domain := odomain[0 : len(odomain)-1]
 	for _, rsuffix := range r.RemoteRule {
 		if strings.HasSuffix(domain, rsuffix) {
@@ -33,23 +38,34 @@ func (r *ResolveRule) GetResolvType(odomain string) int {
 }
 
 func NewResolveRule(fname string) (*ResolveRule, error) {
-	file, err := os.Open(fname)
+	ret := &ResolveRule{
+		FileName:   fname,
+		LocalRule:  []string{},
+		RemoteRule: []string{},
+	}
+	err := ret.Reload()
+	return ret, err
+}
+
+func (r *ResolveRule) Reload() error {
+	file, err := os.Open(r.FileName)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer file.Close()
 	data, err := ioutil.ReadAll(file)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return parseResolveRuleFile(string(data)), nil
+	r.parseResolveRuleFile(string(data))
+	return nil
 }
 
-func parseResolveRuleFile(data string) *ResolveRule {
-	ret := ResolveRule{
-		LocalRule:  []string{},
-		RemoteRule: []string{},
-	}
+func (r *ResolveRule) parseResolveRuleFile(data string) {
+	localRule := []string{}
+	lrmap := make(map[string]int)
+	remoteRule := []string{}
+	rrmap := make(map[string]int)
 	for _, oline := range strings.Split(data, "\n") {
 		line := strings.TrimSpace(oline)
 		parts := strings.Split(line, "=")
@@ -59,10 +75,19 @@ func parseResolveRuleFile(data string) *ResolveRule {
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
 		if key == "local" {
-			ret.LocalRule = append(ret.LocalRule, value)
+			lrmap[value] = 1
 		} else if key == "remote" {
-			ret.RemoteRule = append(ret.RemoteRule, value)
+			rrmap[value] = 1
 		}
 	}
-	return &ret
+	for k, _ := range lrmap {
+		remoteRule = append(remoteRule, k)
+	}
+	for k, _ := range rrmap {
+		localRule = append(localRule, k)
+	}
+	r.lock.Lock()
+	r.LocalRule = localRule
+	r.RemoteRule = remoteRule
+	r.lock.Unlock()
 }
