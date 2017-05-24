@@ -38,7 +38,7 @@ minfds=65535
 user=root
 
 [program:smartdns]
-command=/muss/muss-smartdns -b 127.0.0.1 -p 5555 -c /etc/muss/chnroute.txt -r 127.0.0.1:5454
+command=/muss/muss-smartdns -b 127.0.0.1 -p 5555 -c /etc/muss/chnroute.txt -r 127.0.0.1:5454 -f /etc/muss/rule.txt
 
 [program:muss-redir]
 command=/muss/muss-redir -c /etc/muss/config.json -l 0.0.0.0 -L 0.0.0.0
@@ -50,6 +50,18 @@ command=/usr/sbin/dnsmasq -d -C /etc/muss/dnsmasq.conf
 RC_LOCAL = '''#!/bin/sh -e
 /muss/redir-iptables.sh start
 '''
+
+SMARTDNS_RULE = '''remote=google.com
+remote=google.com.hk
+remote=facebook.com
+remote=twitter.com
+remote=youtube.com
+local=.cn
+local=baidu.com
+local=apple.com
+local=itunes.com
+'''
+
 
 def cmd(cmd):
     """
@@ -216,6 +228,7 @@ def generate_configs():
         short_cache_ttl_enable = False
     cache_cfg = get_dnsmasq_cache_parameter(short_cache_ttl_enable)
     cfg_str = DNSMASQ_CONFIG_TPL % (cache_cfg, dhcp_iface, dhcp_range_start, dhcp_range_end, dhcp_lease_time, gateway_ip, dns_ip)
+    write_config_file("/etc/muss/rule.txt", SMARTDNS_RULE)
     write_config_file("/etc/muss/dnsmasq.conf", cfg_str)
     write_config_file("/etc/muss/supervisord.conf", SUPERVISORD_CONFIG)
     write_config_file("/etc/rc.local", RC_LOCAL)
