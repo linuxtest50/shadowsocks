@@ -67,6 +67,7 @@ func (self *NATlist) Get(index string) (c *CachedUDPConn, ok bool, err error) {
 }
 
 func handleUDPPacket(conn *net.UDPConn, n int, src *net.UDPAddr, data []byte, config *Config) {
+	defer HandlePanic()
 	defer ss.LeakyBuffer.Put(data)
 	timeout := time.Duration(config.UDPTimeout) * time.Second
 	backendAddr := config.GetUDPBackendAddr()

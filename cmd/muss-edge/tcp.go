@@ -29,6 +29,7 @@ func connectToBackend(config *Config) (net.Conn, error) {
 }
 
 func handleTCPConnection(conn net.Conn, config *Config) {
+	defer HandlePanic()
 	closed := false
 	defer func() {
 		if !closed {

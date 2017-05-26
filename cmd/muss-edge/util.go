@@ -2,7 +2,14 @@ package main
 
 import (
 	"io"
+	"log"
 )
+
+func HandlePanic() {
+	if err := recover(); err != nil {
+		log.Println(err)
+	}
+}
 
 func ProxyPipe(p1, p2 io.ReadWriteCloser) {
 	defer p1.Close()
