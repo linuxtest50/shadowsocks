@@ -48,6 +48,7 @@ build_releases() {
     done
     build_target muss-redir linux amd64
     build_target muss-redir linux arm
+    build_target muss-edge linux amd64
 }
 
 clean_build() {

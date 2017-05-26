@@ -23,3 +23,5 @@ cmd/muss-redir/muss-redir.prof
 cmd/muss-redir/muss-redir.exe
 cmd/muss-smartdns/muss-smartdns
 cmd/muss-smartdns/muss-smartdns.exe
+cmd/muss-edge/muss-edge
+cmd/muss-edge/muss-edge.exe

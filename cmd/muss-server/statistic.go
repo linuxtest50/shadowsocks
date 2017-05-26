@@ -42,6 +42,5 @@ func StartStatisticServer(addr string) {
 	err := server.ListenAndServe()
 	if err != nil {
 		log.Print("Cannot Start Statistic HTTP Server")
-		log.Fatal(err)
 	}
 }

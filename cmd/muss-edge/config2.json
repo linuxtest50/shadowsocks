@@ -1,0 +1,7 @@
+{
+    "backend_server": "127.0.0.1",
+    "backend_tcp_port": 7071,
+    "backend_udp_port": 7071,
+    "listen_tcp_port": 7080,
+    "listen_udp_port": 7080
+}
