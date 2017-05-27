@@ -4,27 +4,28 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
-	"sync"
 )
+
+type Proxy struct {
+	Protocol string `json:"protocol"`
+	Frontend string `json:"frontend"`
+	Backend  string `json:"backend"`
+	Timeout  int    `json:"timeout"`
+}
 
 type Config struct {
 	// Private fields
 	fileName string
-	rwLock   sync.RWMutex
 
 	// Public fields
-	BackendTCPServer string `json:"backend_tcp_server"`
-	BackendUDPServer string `json:"backend_udp_server"`
-	ListenTCPPort    int    `json:"listen_tcp_port"`
-	ListenUDPPort    int    `json:"listen_udp_port"`
-	UDPTimeout       int    `json:"udp_timeout"`
+	Proxies []*Proxy `json:"proxies"`
 }
 
 func NewConfig(fileName string) (*Config, error) {
 	ret := &Config{
 		fileName: fileName,
 	}
-	err := ret.LoadConfig()
+	err := ret.Reload()
 	return ret, err
 }
 
@@ -44,31 +45,7 @@ func (c *Config) parseConfig() (*Config, error) {
 	if err = json.Unmarshal(data, ncfg); err != nil {
 		return nil, err
 	}
-
 	return ncfg, nil
-}
-
-func (c *Config) LoadConfig() error {
-	ncfg, err := c.parseConfig()
-	if err != nil {
-		return err
-	}
-	c.rwLock.Lock()
-	c.BackendTCPServer = ncfg.BackendTCPServer
-	c.BackendUDPServer = ncfg.BackendUDPServer
-	c.ListenTCPPort = ncfg.ListenTCPPort
-	c.ListenUDPPort = ncfg.ListenUDPPort
-	c.SetTimeout(ncfg.UDPTimeout)
-	c.rwLock.Unlock()
-	return nil
-}
-
-func (c *Config) SetTimeout(udpTimeout int) {
-	if udpTimeout == 0 {
-		c.UDPTimeout = 5
-	} else {
-		c.UDPTimeout = udpTimeout
-	}
 }
 
 func (c *Config) Reload() error {
@@ -76,22 +53,17 @@ func (c *Config) Reload() error {
 	if err != nil {
 		return err
 	}
-	c.rwLock.Lock()
-	c.BackendTCPServer = ncfg.BackendTCPServer
-	c.BackendUDPServer = ncfg.BackendUDPServer
-	c.SetTimeout(ncfg.UDPTimeout)
-	c.rwLock.Unlock()
+	c.Proxies = ncfg.Proxies
+	c.check()
 	return nil
 }
 
-func (c *Config) GetTCPBackendAddr() string {
-	c.rwLock.RLock()
-	defer c.rwLock.RUnlock()
-	return c.BackendTCPServer
-}
-
-func (c *Config) GetUDPBackendAddr() string {
-	c.rwLock.RLock()
-	defer c.rwLock.RUnlock()
-	return c.BackendUDPServer
+func (c *Config) check() {
+	for _, pcfg := range c.Proxies {
+		if pcfg.Protocol == "udp" {
+			if pcfg.Timeout == 0 {
+				pcfg.Timeout = 5
+			}
+		}
+	}
 }

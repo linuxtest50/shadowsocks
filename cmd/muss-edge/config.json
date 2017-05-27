@@ -1,6 +1,6 @@
 {
-    "backend_tcp_server": "127.0.0.1:7080",
-    "backend_udp_server": "127.0.0.1:7080",
-    "listen_tcp_port": 7072,
-    "listen_udp_port": 7072
+    "proxies": [
+        {"protocol": "tcp", "frontend": "0.0.0.0:7072", "backend": "127.0.0.1:7071"},
+        {"protocol": "udp", "frontend": "0.0.0.0:7072", "backend": "127.0.0.1:7071"}
+    ]
 }

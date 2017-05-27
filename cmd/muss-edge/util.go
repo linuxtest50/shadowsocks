@@ -5,6 +5,15 @@ import (
 	"log"
 )
 
+type MussProxy interface {
+	Start() error
+	Stop()
+	GetBackendAddr() string
+	UpdateBackendAddr(string) error
+	GetTimeout() int
+	UpdateTimeout(int)
+}
+
 func HandlePanic() {
 	if err := recover(); err != nil {
 		log.Println(err)

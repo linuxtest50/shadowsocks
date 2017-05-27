@@ -66,11 +66,60 @@ func (self *NATlist) Get(index string) (c *CachedUDPConn, ok bool, err error) {
 	return
 }
 
-func handleUDPPacket(conn *net.UDPConn, n int, src *net.UDPAddr, data []byte, config *Config) {
+type UDPProxy struct {
+	listenAddr  string
+	backendAddr string
+	running     bool
+	lock        sync.RWMutex
+	conn        *net.UDPConn
+	timeout     int
+}
+
+func NewUDPProxy(listenAddr, backendAddr string, timeout int) *UDPProxy {
+	return &UDPProxy{
+		listenAddr:  listenAddr,
+		backendAddr: backendAddr,
+		running:     true,
+		timeout:     timeout,
+	}
+}
+
+func (p *UDPProxy) UpdateBackendAddr(backendAddr string) error {
+	_, err := net.ResolveUDPAddr("udp", backendAddr)
+	if err != nil {
+		return err
+	}
+	p.lock.Lock()
+	p.backendAddr = backendAddr
+	p.lock.Unlock()
+	return nil
+}
+
+func (p *UDPProxy) GetBackendAddr() string {
+	return p.backendAddr
+}
+
+func (p *UDPProxy) UpdateTimeout(timeout int) {
+	p.lock.Lock()
+	p.timeout = timeout
+	p.lock.Unlock()
+}
+
+func (p *UDPProxy) GetTimeout() int {
+	return p.timeout
+}
+
+func (p *UDPProxy) Stop() {
+	p.running = false
+}
+
+func (p *UDPProxy) handleUDPPacket(conn *net.UDPConn, n int, src *net.UDPAddr, data []byte) {
 	defer HandlePanic()
 	defer ss.LeakyBuffer.Put(data)
-	timeout := time.Duration(config.UDPTimeout) * time.Second
-	backendAddr := config.GetUDPBackendAddr()
+	p.lock.RLock()
+	timeout := time.Duration(p.timeout) * time.Second
+	backendAddr := p.backendAddr
+	p.lock.RUnlock()
 	dst, err := net.ResolveUDPAddr("udp", backendAddr)
 	if err != nil {
 		log.Printf("Cannot resolve UDP backend address: %v\n", err)
@@ -83,7 +132,7 @@ func handleUDPPacket(conn *net.UDPConn, n int, src *net.UDPAddr, data []byte, co
 	}
 	if !exist {
 		go func() {
-			Pipeloop(conn, src, remote, timeout)
+			p.pipeloop(conn, src, remote, timeout)
 			natList.Delete(src.String())
 		}()
 	}
@@ -102,7 +151,7 @@ func handleUDPPacket(conn *net.UDPConn, n int, src *net.UDPAddr, data []byte, co
 	return
 }
 
-func Pipeloop(conn *net.UDPConn, srcaddr *net.UDPAddr, remote *CachedUDPConn, timeout time.Duration) {
+func (p *UDPProxy) pipeloop(conn *net.UDPConn, srcaddr *net.UDPAddr, remote *CachedUDPConn, timeout time.Duration) {
 	buf := ss.LeakyBuffer.Get()
 	defer ss.LeakyBuffer.Put(buf)
 	for {
@@ -124,25 +173,36 @@ func Pipeloop(conn *net.UDPConn, srcaddr *net.UDPAddr, remote *CachedUDPConn, ti
 	}
 }
 
-func runUDPProxy(config *Config) {
-	listenAddr := fmt.Sprintf("0.0.0.0:%d", config.ListenUDPPort)
-	uaddr, err := net.ResolveUDPAddr("udp", listenAddr)
+func (p *UDPProxy) Start() error {
+	uaddr, err := net.ResolveUDPAddr("udp", p.listenAddr)
 	if err != nil {
-		log.Fatal("Error: cannot resolve UDP address: %s\n", listenAddr)
+		log.Println("Error: cannot resolve UDP address: %s\n", p.listenAddr)
+		return err
 	}
 	conn, err := net.ListenUDP("udp", uaddr)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return err
 	}
-	log.Println("Start UDP Proxy At:", listenAddr)
+	p.conn = conn
+	go p.run()
+	return nil
+}
+
+func (p *UDPProxy) run() {
+	log.Println("Start UDP Proxy At:", p.listenAddr, "Backend:", p.backendAddr)
 	for {
+		if !p.running {
+			break
+		}
 		buf := ss.LeakyBuffer.Get()
-		n, src, err := conn.ReadFromUDP(buf)
+		n, src, err := p.conn.ReadFromUDP(buf)
 		if err != nil {
 			log.Printf("Read packet from UDP error: %v\n", err)
 			ss.LeakyBuffer.Put(buf)
 			continue
 		}
-		go handleUDPPacket(conn, n, src, buf, config)
+		go p.handleUDPPacket(p.conn, n, src, buf)
 	}
+	log.Println("Stop UDP Proxy At:", p.listenAddr)
 }

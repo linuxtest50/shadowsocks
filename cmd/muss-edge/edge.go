@@ -11,18 +11,91 @@ import (
 
 const VERSION = "1.0.0"
 
-func WaitSignal(config *Config) {
+type ProxyContainer struct {
+	Config  *Config
+	Proxies map[string]MussProxy
+}
+
+func NewProxyContainer(config *Config) *ProxyContainer {
+	return &ProxyContainer{
+		Config:  config,
+		Proxies: make(map[string]MussProxy),
+	}
+}
+
+func (c *ProxyContainer) Start() {
+	for _, pcfg := range c.Config.Proxies {
+		key := fmt.Sprintf("%s %s", pcfg.Protocol, pcfg.Frontend)
+		_, have := c.Proxies[key]
+		if have {
+			log.Println("Already have frontend", key, "ignore it")
+			continue
+		}
+		err := c.startNewProxy(key, pcfg)
+		if err != nil {
+			log.Println("Start new proxy", key, "error:", err)
+		}
+	}
+}
+
+func (c *ProxyContainer) startNewProxy(key string, pcfg *Proxy) error {
+	if pcfg.Protocol == "tcp" {
+		proxy := NewTCPProxy(pcfg.Frontend, pcfg.Backend, pcfg.Timeout)
+		err := proxy.Start()
+		if err != nil {
+			return err
+		}
+		c.Proxies[key] = proxy
+	} else if pcfg.Protocol == "udp" {
+		proxy := NewUDPProxy(pcfg.Frontend, pcfg.Backend, pcfg.Timeout)
+		proxy.UpdateTimeout(pcfg.Timeout)
+		err := proxy.Start()
+		if err != nil {
+			return err
+		}
+		c.Proxies[key] = proxy
+	}
+	return nil
+}
+
+func (c *ProxyContainer) Reload() {
+	c.Config.Reload()
+	for _, pcfg := range c.Config.Proxies {
+		key := fmt.Sprintf("%s %s", pcfg.Protocol, pcfg.Frontend)
+		proxy, have := c.Proxies[key]
+		if have {
+			// Change Configuration
+			if pcfg.Timeout != proxy.GetTimeout() {
+				proxy.UpdateTimeout(pcfg.Timeout)
+				log.Println("Update proxy", key, "timeout")
+			}
+			if pcfg.Backend != proxy.GetBackendAddr() {
+				err := proxy.UpdateBackendAddr(pcfg.Backend)
+				if err != nil {
+					log.Println("Proxy", key, "update backend error:", err)
+				} else {
+					log.Println("Update proxy", key, "backend")
+				}
+			}
+		} else {
+			// Add new proxy
+			err := c.startNewProxy(key, pcfg)
+			if err != nil {
+				log.Println("Start new proxy", key, "error:", err)
+			}
+		}
+	}
+}
+
+func WaitSignal(container *ProxyContainer) {
 	var sigChan = make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, os.Kill, syscall.SIGHUP)
 	for sig := range sigChan {
 		if sig == syscall.SIGHUP {
 			// Reload resolve rule file
-			err := config.Reload()
-			if err != nil {
-				log.Println("Reload Config Error:", err)
-			} else {
-				log.Println("Reload Config Success")
-			}
+			log.Println("Reloading")
+			container.Reload()
+			log.Println("Reload Finish")
 		} else {
 			log.Fatal("Server Exit\n")
 		}
@@ -53,7 +126,7 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	go runTCPProxy(config)
-	go runUDPProxy(config)
-	WaitSignal(config)
+	container := NewProxyContainer(config)
+	container.Start()
+	WaitSignal(container)
 }

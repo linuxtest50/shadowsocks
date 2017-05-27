@@ -1,34 +1,69 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net"
+	"sync"
 )
 
-func runTCPProxy(config *Config) {
-	listenAddr := fmt.Sprintf("0.0.0.0:%d", config.ListenTCPPort)
-	ln, err := net.Listen("tcp", listenAddr)
-	if err != nil {
-		log.Fatal(err)
+type TCPProxy struct {
+	listenAddr  string
+	backendAddr string
+	running     bool
+	conn        *net.TCPListener
+	lock        sync.RWMutex
+	timeout     int
+}
+
+func NewTCPProxy(listenAddr string, backendAddr string, timeout int) *TCPProxy {
+	return &TCPProxy{
+		listenAddr:  listenAddr,
+		backendAddr: backendAddr,
+		running:     true,
+		timeout:     timeout,
 	}
-	log.Println("Start TCP Proxy At:", listenAddr)
+}
+
+func (p *TCPProxy) Start() error {
+	taddr, err := net.ResolveTCPAddr("tcp", p.listenAddr)
+	if err != nil {
+		log.Println("Error: cannot resolve tcp address: %s\n", p.listenAddr)
+		return err
+	}
+	ln, err := net.ListenTCP("tcp", taddr)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	p.conn = ln
+	go p.run()
+	return nil
+}
+
+func (p *TCPProxy) run() {
+	log.Println("Start TCP Proxy At:", p.listenAddr, "Backend:", p.backendAddr)
 	for {
-		conn, err := ln.Accept()
+		if !p.running {
+			break
+		}
+		conn, err := p.conn.Accept()
 		if err != nil {
 			log.Println("accept:", err)
 			continue
 		}
-		go handleTCPConnection(conn, config)
+		go p.handleTCPConnection(conn)
 	}
+	log.Println("Stop TCP Proxy At:", p.listenAddr)
 }
 
-func connectToBackend(config *Config) (net.Conn, error) {
-	backendAddr := config.GetTCPBackendAddr()
-	return net.Dial("tcp", backendAddr)
+func (p *TCPProxy) connectToBackend() (net.Conn, error) {
+	p.lock.RLock()
+	baddr := p.backendAddr
+	p.lock.RUnlock()
+	return net.Dial("tcp", baddr)
 }
 
-func handleTCPConnection(conn net.Conn, config *Config) {
+func (p *TCPProxy) handleTCPConnection(conn net.Conn) {
 	defer HandlePanic()
 	closed := false
 	defer func() {
@@ -36,7 +71,7 @@ func handleTCPConnection(conn net.Conn, config *Config) {
 			conn.Close()
 		}
 	}()
-	backend, err := connectToBackend(config)
+	backend, err := p.connectToBackend()
 	if err != nil {
 		log.Println("Cannot connect to Backend:", err)
 		return
@@ -51,4 +86,34 @@ func handleTCPConnection(conn net.Conn, config *Config) {
 	go ProxyPipe(conn, backend)
 	ProxyPipe(backend, conn)
 	closed = true
+}
+
+func (p *TCPProxy) UpdateBackendAddr(backendAddr string) error {
+	_, err := net.ResolveTCPAddr("tcp", backendAddr)
+	if err != nil {
+		return err
+	}
+	p.lock.Lock()
+	p.backendAddr = backendAddr
+	p.lock.Unlock()
+	return nil
+}
+
+func (p *TCPProxy) Stop() {
+	p.running = false
+	p.conn.Close()
+}
+
+func (p *TCPProxy) GetBackendAddr() string {
+	return p.backendAddr
+}
+
+func (p *TCPProxy) UpdateTimeout(timeout int) {
+	p.lock.Lock()
+	p.timeout = timeout
+	p.lock.Unlock()
+}
+
+func (p *TCPProxy) GetTimeout() int {
+	return p.timeout
 }
