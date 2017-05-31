@@ -83,8 +83,7 @@ func (p *TCPProxy) handleTCPConnection(conn net.Conn) {
 		}
 	}()
 
-	go ProxyPipe(conn, backend)
-	ProxyPipe(backend, conn)
+	ProxyPipe(conn, backend)
 	closed = true
 }
 

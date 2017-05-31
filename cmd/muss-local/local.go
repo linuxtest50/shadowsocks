@@ -496,8 +496,5 @@ func main() {
 		dnsProxyPort := config.DNSProxyPort
 		go runNameServer(fmt.Sprintf("%s:%d", cmdLocal, dnsProxyPort), config.UserID)
 	}
-	if debug {
-		go reportKCPStatus()
-	}
 	runTCP(cmdLocal+":"+strconv.Itoa(config.LocalPort), config.UserID, useKCP)
 }
