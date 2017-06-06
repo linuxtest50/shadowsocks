@@ -171,6 +171,13 @@ func (c *UDPConn) HandleUDPConnection(n int, src *net.UDPAddr, receive []byte, r
 	var dstIP net.IP
 	var reqLen int
 	defer leakyBuf.Put(receive)
+	// At here we add panic recover to prevent encrypt bug.
+	// If we got panic here, just ignore this UDP package send.
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println(err)
+		}
+	}()
 	addrType := receive[idType]
 	switch addrType & AddrMask {
 	case typeIPv4:
