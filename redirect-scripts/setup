@@ -216,6 +216,8 @@ def generate_configs():
     method = get_input("Please input crypt method [aes-128-cfb-auth]: ", default="aes-128-cfb-auth")
     cfg_str = MUSS_CONFIG_TPL % (server_ip, password, method, userid)
     write_config_file("/etc/muss/config.json", cfg_str)
+    # Network NAT config
+    public_iface = get_input("please input public NIC name (%s): " % (", ".join(INTERFACES)), validate_interfaces)
     # DNSMasq config
     dhcp_iface = get_input("Please input DHCP NIC name (%s): " % (", ".join(INTERFACES)), validate_interfaces)
     dhcp_range_start = get_input("Please input DHCP start IP [192.168.1.100]: ", validate_ip, "192.168.1.100")
@@ -229,6 +231,11 @@ def generate_configs():
         short_cache_ttl_enable = False
     cache_cfg = get_dnsmasq_cache_parameter(short_cache_ttl_enable)
     cfg_str = DNSMASQ_CONFIG_TPL % (cache_cfg, dhcp_iface, dhcp_range_start, dhcp_range_end, dhcp_lease_time, gateway_ip, dns_ip)
+    with open("%s/redir-iptables.sh" % BASE_DIR) as sfp:
+        script = sfp.read()
+    tscript = script.replace("##ETHNAME##", public_iface)
+    with open("/muss/redir-iptables.sh", "w+") as dfp:
+        dfp.write(tscript)
     write_config_file("/etc/muss/rule.txt", SMARTDNS_RULE)
     write_config_file("/etc/muss/dnsmasq.conf", cfg_str)
     write_config_file("/etc/muss/supervisord.conf", SUPERVISORD_CONFIG)
@@ -238,7 +245,7 @@ def generate_configs():
 def copy_files():
     print("Copy Files")
     cmd("mkdir -p /muss")
-    for fname in ['muss-smartdns', 'muss-redir', 'redir-iptables.sh']:
+    for fname in ['muss-smartdns', 'muss-redir']:
         local_path = "%s/%s" % (BASE_DIR, fname)
         target = "/muss/%s" % fname
         copy2(local_path, target)

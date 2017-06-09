@@ -1,5 +1,5 @@
 #!/bin/bash
-PUB_ETH=eth0
+PUB_ETH=##ETHNAME##
 CONFIG_PATH=/etc/muss
 CHNROUTE_CONFIG=${CONFIG_PATH}/chnroute.txt
 CHNROUTE_PATCH=${CONFIG_PATH}/chnroute.patch
