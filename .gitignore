@@ -3,6 +3,7 @@ script/http
 bin
 build
 **/.DS_Store
+**/*.json
 cmd/muss-local/muss-local
 cmd/muss-local/muss-local.exe
 cmd/muss-local/muss-local.prof

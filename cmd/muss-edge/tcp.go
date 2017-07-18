@@ -7,24 +7,27 @@ import (
 )
 
 type TCPProxy struct {
-	listenAddr  string
-	backendAddr string
-	running     bool
-	conn        *net.TCPListener
-	lock        sync.RWMutex
-	timeout     int
+	listenAddr     string
+	backends       []string
+	running        bool
+	conn           *net.TCPListener
+	lock           sync.RWMutex
+	timeout        int
+	backendChecker *BackendChecker
 }
 
-func NewTCPProxy(listenAddr string, backendAddr string, timeout int) *TCPProxy {
+func NewTCPProxy(listenAddr string, backends []string, timeout int) *TCPProxy {
 	return &TCPProxy{
-		listenAddr:  listenAddr,
-		backendAddr: backendAddr,
-		running:     true,
-		timeout:     timeout,
+		listenAddr:     listenAddr,
+		backends:       backends,
+		running:        true,
+		timeout:        timeout,
+		backendChecker: NewBackendChecker(backends),
 	}
 }
 
 func (p *TCPProxy) Start() error {
+	p.backendChecker.Start()
 	taddr, err := net.ResolveTCPAddr("tcp", p.listenAddr)
 	if err != nil {
 		log.Println("Error: cannot resolve tcp address: %s\n", p.listenAddr)
@@ -41,7 +44,7 @@ func (p *TCPProxy) Start() error {
 }
 
 func (p *TCPProxy) run() {
-	log.Println("Start TCP Proxy At:", p.listenAddr, "Backend:", p.backendAddr)
+	log.Println("Start TCP Proxy At:", p.listenAddr, "Backends:", p.backends)
 	for {
 		if !p.running {
 			break
@@ -58,7 +61,7 @@ func (p *TCPProxy) run() {
 
 func (p *TCPProxy) connectToBackend() (net.Conn, error) {
 	p.lock.RLock()
-	baddr := p.backendAddr
+	baddr := p.backendChecker.BestBackend
 	p.lock.RUnlock()
 	return net.Dial("tcp", baddr)
 }
@@ -87,13 +90,20 @@ func (p *TCPProxy) handleTCPConnection(conn net.Conn) {
 	closed = true
 }
 
-func (p *TCPProxy) UpdateBackendAddr(backendAddr string) error {
-	_, err := net.ResolveTCPAddr("tcp", backendAddr)
-	if err != nil {
-		return err
+func (p *TCPProxy) UpdateBackendsAddr(backends []string) error {
+	for _, backend := range backends {
+		_, err := net.ResolveTCPAddr("tcp", backend)
+		if err != nil {
+			return err
+		}
 	}
 	p.lock.Lock()
-	p.backendAddr = backendAddr
+	p.backends = backends
+	if p.backendChecker != nil {
+		p.backendChecker.Stop()
+	}
+	p.backendChecker = NewBackendChecker(backends)
+	p.backendChecker.Start()
 	p.lock.Unlock()
 	return nil
 }
@@ -101,10 +111,6 @@ func (p *TCPProxy) UpdateBackendAddr(backendAddr string) error {
 func (p *TCPProxy) Stop() {
 	p.running = false
 	p.conn.Close()
-}
-
-func (p *TCPProxy) GetBackendAddr() string {
-	return p.backendAddr
 }
 
 func (p *TCPProxy) UpdateTimeout(timeout int) {

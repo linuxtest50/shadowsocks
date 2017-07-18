@@ -7,10 +7,10 @@ import (
 )
 
 type Proxy struct {
-	Protocol string `json:"protocol"`
-	Frontend string `json:"frontend"`
-	Backend  string `json:"backend"`
-	Timeout  int    `json:"timeout"`
+	Protocol string   `json:"protocol"`
+	Frontend string   `json:"frontend"`
+	Backends []string `json:"backends"`
+	Timeout  int      `json:"timeout"`
 }
 
 type Config struct {

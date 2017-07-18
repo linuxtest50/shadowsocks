@@ -40,14 +40,14 @@ func (c *ProxyContainer) Start() {
 
 func (c *ProxyContainer) startNewProxy(key string, pcfg *Proxy) error {
 	if pcfg.Protocol == "tcp" {
-		proxy := NewTCPProxy(pcfg.Frontend, pcfg.Backend, pcfg.Timeout)
+		proxy := NewTCPProxy(pcfg.Frontend, pcfg.Backends, pcfg.Timeout)
 		err := proxy.Start()
 		if err != nil {
 			return err
 		}
 		c.Proxies[key] = proxy
 	} else if pcfg.Protocol == "udp" {
-		proxy := NewUDPProxy(pcfg.Frontend, pcfg.Backend, pcfg.Timeout)
+		proxy := NewUDPProxy(pcfg.Frontend, pcfg.Backends, pcfg.Timeout)
 		proxy.UpdateTimeout(pcfg.Timeout)
 		err := proxy.Start()
 		if err != nil {
@@ -69,13 +69,11 @@ func (c *ProxyContainer) Reload() {
 				proxy.UpdateTimeout(pcfg.Timeout)
 				log.Println("Update proxy", key, "timeout")
 			}
-			if pcfg.Backend != proxy.GetBackendAddr() {
-				err := proxy.UpdateBackendAddr(pcfg.Backend)
-				if err != nil {
-					log.Println("Proxy", key, "update backend error:", err)
-				} else {
-					log.Println("Update proxy", key, "backend")
-				}
+			err := proxy.UpdateBackendsAddr(pcfg.Backends)
+			if err != nil {
+				log.Println("Proxy", key, "update backend error:", err)
+			} else {
+				log.Println("Update proxy", key, "backend")
 			}
 		} else {
 			// Add new proxy

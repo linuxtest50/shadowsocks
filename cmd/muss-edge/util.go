@@ -8,8 +8,7 @@ import (
 type MussProxy interface {
 	Start() error
 	Stop()
-	GetBackendAddr() string
-	UpdateBackendAddr(string) error
+	UpdateBackendsAddr([]string) error
 	GetTimeout() int
 	UpdateTimeout(int)
 }

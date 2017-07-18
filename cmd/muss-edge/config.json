@@ -1,6 +1,6 @@
 {
     "proxies": [
-        {"protocol": "tcp", "frontend": "0.0.0.0:7072", "backend": "127.0.0.1:7071"},
-        {"protocol": "udp", "frontend": "0.0.0.0:7072", "backend": "127.0.0.1:7071"}
+        {"protocol": "tcp", "frontend": "0.0.0.0:7072", "backends": ["119.28.9.239:7071", "114.114.114.114:7071"]},
+        {"protocol": "udp", "frontend": "0.0.0.0:7072", "backends": ["114.114.114.114:7071", "119.28.9.239:7071"]}
     ]
 }

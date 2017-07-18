@@ -67,36 +67,34 @@ func (self *NATlist) Get(index string) (c *CachedUDPConn, ok bool, err error) {
 }
 
 type UDPProxy struct {
-	listenAddr  string
-	backendAddr string
-	running     bool
-	lock        sync.RWMutex
-	conn        *net.UDPConn
-	timeout     int
+	listenAddr string
+	backends   []string
+	running    bool
+	lock       sync.RWMutex
+	conn       *net.UDPConn
+	timeout    int
 }
 
-func NewUDPProxy(listenAddr, backendAddr string, timeout int) *UDPProxy {
+func NewUDPProxy(listenAddr string, backends []string, timeout int) *UDPProxy {
 	return &UDPProxy{
-		listenAddr:  listenAddr,
-		backendAddr: backendAddr,
-		running:     true,
-		timeout:     timeout,
+		listenAddr: listenAddr,
+		backends:   backends,
+		running:    true,
+		timeout:    timeout,
 	}
 }
 
-func (p *UDPProxy) UpdateBackendAddr(backendAddr string) error {
-	_, err := net.ResolveUDPAddr("udp", backendAddr)
-	if err != nil {
-		return err
+func (p *UDPProxy) UpdateBackendsAddr(backends []string) error {
+	for _, backend := range backends {
+		_, err := net.ResolveUDPAddr("udp", backend)
+		if err != nil {
+			return err
+		}
 	}
 	p.lock.Lock()
-	p.backendAddr = backendAddr
+	p.backends = backends
 	p.lock.Unlock()
 	return nil
-}
-
-func (p *UDPProxy) GetBackendAddr() string {
-	return p.backendAddr
 }
 
 func (p *UDPProxy) UpdateTimeout(timeout int) {
@@ -113,12 +111,16 @@ func (p *UDPProxy) Stop() {
 	p.running = false
 }
 
+func (p *UDPProxy) getBackendAddr() string {
+	return p.backends[0]
+}
+
 func (p *UDPProxy) handleUDPPacket(conn *net.UDPConn, n int, src *net.UDPAddr, data []byte) {
 	defer HandlePanic()
 	defer ss.LeakyBuffer.Put(data)
 	p.lock.RLock()
 	timeout := time.Duration(p.timeout) * time.Second
-	backendAddr := p.backendAddr
+	backendAddr := p.getBackendAddr()
 	p.lock.RUnlock()
 	dst, err := net.ResolveUDPAddr("udp", backendAddr)
 	if err != nil {
@@ -190,7 +192,7 @@ func (p *UDPProxy) Start() error {
 }
 
 func (p *UDPProxy) run() {
-	log.Println("Start UDP Proxy At:", p.listenAddr, "Backend:", p.backendAddr)
+	log.Println("Start UDP Proxy At:", p.listenAddr, "Backends:", p.backends)
 	for {
 		if !p.running {
 			break
