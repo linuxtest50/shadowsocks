@@ -9,7 +9,7 @@ import (
 	"syscall"
 )
 
-const VERSION = "1.0.0"
+const VERSION = "1.1.0"
 
 type ProxyContainer struct {
 	Config  *Config
