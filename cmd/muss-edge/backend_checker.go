@@ -194,6 +194,13 @@ func (c *BackendChecker) parsePingOutput(out string) (rttavg float64, rttmdev fl
 			continue
 		}
 	}
+	if rttLine == "" && lostLine != "" {
+		// This mean all packet lost, so we should give a very big result
+		rttavg = 1000.0
+		rttmdev = 1000.0
+		lost = 100.0
+		return
+	}
 	// Parse rtt line
 	rttParta := strings.Split(rttLine, "=")
 	if len(rttParta) < 2 {
